@@ -71,4 +71,11 @@ impl Position {
             | (east_one | west_one).shift_north().shift_north()
             | (east_one | west_one).shift_south().shift_south()
     }
+
+    pub fn king_attacks(&self, color: Color) -> Bitboard {
+        let king = self.pieces[color][Piece::King];
+        let east_west = king.shift_east() | king.shift_west();
+
+        east_west | (east_west | king).shift_north() | (east_west | king).shift_south()
+    }
 }
