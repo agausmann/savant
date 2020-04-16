@@ -58,4 +58,17 @@ impl Position {
     pub fn pawn_west_captures(&self, color: Color) -> Bitboard {
         self.pawn_west_attacks(color) & (self.pieces(color.enemy()) | self.en_passant)
     }
+
+    pub fn knight_attacks(&self, color: Color) -> Bitboard {
+        let knights = self.pieces[color][Piece::Knight];
+        let east_one = knights.shift_east();
+        let west_one = knights.shift_west();
+        let east_two = east_one.shift_east();
+        let west_two = west_one.shift_west();
+
+        (east_two | west_two).shift_north()
+            | (east_two | west_two).shift_south()
+            | (east_one | west_one).shift_north().shift_north()
+            | (east_one | west_one).shift_south().shift_south()
+    }
 }
