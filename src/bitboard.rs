@@ -65,6 +65,10 @@ impl Bitboard {
         }
         flood
     }
+
+    pub fn sliding_attacks(self, empty: Bitboard, direction: Direction) -> Bitboard {
+        self.occluded_fill(empty, direction).shift(direction)
+    }
 }
 
 impl Default for Bitboard {
