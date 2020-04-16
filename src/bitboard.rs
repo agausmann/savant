@@ -1,6 +1,7 @@
-use crate::types::{Color, Rank};
+use crate::types::{Color, Direction, Rank};
 use std::ops;
 
+const IDENT: u64 = 0xffffffffffffffff;
 const NOT_A: u64 = 0xfefefefefefefefe;
 const NOT_H: u64 = 0x7f7f7f7f7f7f7f7f;
 
@@ -20,57 +21,49 @@ impl Bitboard {
         Bitboard(0x00000000000000ff << rank.bitboard_offset())
     }
 
-    pub fn shift_south(self) -> Bitboard {
-        Bitboard(self.0 >> 8)
-    }
-
-    pub fn shift_north(self) -> Bitboard {
-        Bitboard(self.0 << 8)
-    }
-
-    pub fn shift_east(self) -> Bitboard {
-        Bitboard((self.0 & NOT_H) << 1)
-    }
-
-    pub fn shift_west(self) -> Bitboard {
-        Bitboard((self.0 & NOT_A) >> 1)
-    }
-
-    pub fn shift_north_east(self) -> Bitboard {
-        Bitboard((self.0 & NOT_H) << 9)
-    }
-
-    pub fn shift_north_west(self) -> Bitboard {
-        Bitboard((self.0 & NOT_A) << 7)
-    }
-
-    pub fn shift_south_east(self) -> Bitboard {
-        Bitboard((self.0 & NOT_H) >> 7)
-    }
-
-    pub fn shift_south_west(self) -> Bitboard {
-        Bitboard((self.0 & NOT_A) >> 9)
+    pub fn shift(self, direction: Direction) -> Bitboard {
+        let (offset, mask) = match direction {
+            Direction::North => (8, IDENT),
+            Direction::South => (64 - 8, IDENT),
+            Direction::East => (1, NOT_H),
+            Direction::West => (64 - 1, NOT_A),
+            Direction::NorthEast => (9, NOT_H),
+            Direction::NorthWest => (7, NOT_A),
+            Direction::SouthEast => (64 - 7, NOT_H),
+            Direction::SouthWest => (64 - 9, NOT_A),
+        };
+        Bitboard((self.0 & mask).rotate_left(offset))
     }
 
     pub fn shift_forward(self, color: Color) -> Bitboard {
         match color {
-            Color::White => self.shift_north(),
-            Color::Black => self.shift_south(),
+            Color::White => self.shift(Direction::North),
+            Color::Black => self.shift(Direction::South),
         }
     }
 
     pub fn shift_forward_east(self, color: Color) -> Bitboard {
         match color {
-            Color::White => self.shift_north_east(),
-            Color::Black => self.shift_south_east(),
+            Color::White => self.shift(Direction::NorthEast),
+            Color::Black => self.shift(Direction::SouthEast),
         }
     }
 
     pub fn shift_forward_west(self, color: Color) -> Bitboard {
         match color {
-            Color::White => self.shift_north_west(),
-            Color::Black => self.shift_south_west(),
+            Color::White => self.shift(Direction::NorthWest),
+            Color::Black => self.shift(Direction::SouthWest),
         }
+    }
+
+    pub fn occluded_fill(self, empty: Bitboard, direction: Direction) -> Bitboard {
+        let mut flood = self;
+        let mut slide = self;
+        for _ in 0..7 {
+            slide = slide.shift(direction) & empty;
+            flood |= slide;
+        }
+        flood
     }
 }
 

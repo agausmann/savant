@@ -1,5 +1,5 @@
 use crate::bitboard::Bitboard;
-use crate::types::{Color, Piece, Rank};
+use crate::types::{Color, Direction, Piece, Rank};
 use enum_map::EnumMap;
 
 pub struct Position {
@@ -90,15 +90,19 @@ impl Position {
     /// [attacked by knights]: https://www.chessprogramming.org/Knight_Pattern
     pub fn knight_attacks(&self, color: Color) -> Bitboard {
         let knights = self.pieces[color][Piece::Knight];
-        let east_one = knights.shift_east();
-        let west_one = knights.shift_west();
-        let east_two = east_one.shift_east();
-        let west_two = west_one.shift_west();
+        let east_one = knights.shift(Direction::East);
+        let west_one = knights.shift(Direction::West);
+        let east_two = east_one.shift(Direction::East);
+        let west_two = west_one.shift(Direction::West);
 
-        (east_two | west_two).shift_north()
-            | (east_two | west_two).shift_south()
-            | (east_one | west_one).shift_north().shift_north()
-            | (east_one | west_one).shift_south().shift_south()
+        (east_two | west_two).shift(Direction::North)
+            | (east_two | west_two).shift(Direction::South)
+            | (east_one | west_one)
+                .shift(Direction::North)
+                .shift(Direction::North)
+            | (east_one | west_one)
+                .shift(Direction::South)
+                .shift(Direction::South)
     }
 
     /// The squares which are [attacked by the king] of the given color.
@@ -106,8 +110,10 @@ impl Position {
     /// [attacked by the king]: https://www.chessprogramming.org/King_Pattern
     pub fn king_attacks(&self, color: Color) -> Bitboard {
         let king = self.pieces[color][Piece::King];
-        let east_west = king.shift_east() | king.shift_west();
+        let east_west = king.shift(Direction::East) | king.shift(Direction::West);
 
-        east_west | (east_west | king).shift_north() | (east_west | king).shift_south()
+        east_west
+            | (east_west | king).shift(Direction::North)
+            | (east_west | king).shift(Direction::South)
     }
 }
