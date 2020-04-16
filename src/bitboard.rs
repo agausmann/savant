@@ -1,7 +1,8 @@
 use crate::types::{Color, Direction, Rank};
 use std::ops;
 
-const IDENT: u64 = 0xffffffffffffffff;
+const NOT_8: u64 = 0x00ffffffffffffff;
+const NOT_1: u64 = 0xffffffffffffff00;
 const NOT_A: u64 = 0xfefefefefefefefe;
 const NOT_H: u64 = 0x7f7f7f7f7f7f7f7f;
 
@@ -23,14 +24,14 @@ impl Bitboard {
 
     pub fn shift(self, direction: Direction) -> Bitboard {
         let (offset, mask) = match direction {
-            Direction::North => (8, IDENT),
-            Direction::South => (64 - 8, IDENT),
+            Direction::North => (8, NOT_8),
+            Direction::South => (64 - 8, NOT_1),
             Direction::East => (1, NOT_H),
             Direction::West => (64 - 1, NOT_A),
-            Direction::NorthEast => (9, NOT_H),
-            Direction::NorthWest => (7, NOT_A),
-            Direction::SouthEast => (64 - 7, NOT_H),
-            Direction::SouthWest => (64 - 9, NOT_A),
+            Direction::NorthEast => (9, NOT_8 & NOT_H),
+            Direction::NorthWest => (7, NOT_8 & NOT_A),
+            Direction::SouthEast => (64 - 7, NOT_1 & NOT_H),
+            Direction::SouthWest => (64 - 9, NOT_1 & NOT_A),
         };
         Bitboard((self.0 & mask).rotate_left(offset))
     }
