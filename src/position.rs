@@ -2,6 +2,7 @@ use crate::bitboard::Bitboard;
 use crate::types::{Color, Direction, KnightDirection, Piece, Rank};
 use enum_map::EnumMap;
 
+#[derive(Debug)]
 pub struct Position {
     pieces: EnumMap<Color, EnumMap<Piece, Bitboard>>,
     en_passant: Bitboard,
@@ -363,8 +364,62 @@ impl Position {
     }
 }
 
+#[derive(Debug)]
 pub struct DirGolem<'a> {
     position: &'a Position,
     cardinals: EnumMap<Direction, Bitboard>,
     knights: EnumMap<KnightDirection, Bitboard>,
+}
+
+impl<'a> DirGolem<'a> {
+    pub fn iter<'b>(&'b self) -> impl Iterator<Item = Move> + 'b {
+        let cardinals = self.cardinals.iter().flat_map(|(dir, &targets)| {
+            targets.into_iter().map(move |target| {
+                let source = target.shift(dir.opposite());
+                Move { source, target }
+            })
+        });
+        let knights = self.knights.iter().flat_map(|(dir, &targets)| {
+            targets.into_iter().map(move |target| {
+                let source = target.knight_shift(dir.opposite());
+                Move { source, target }
+            })
+        });
+
+        cardinals.chain(knights)
+    }
+
+    pub fn move_ordered(self, color: Color) -> MoveOrderedDirGolem<'a> {
+        let captures = DirGolem {
+            position: self.position,
+            cardinals: EnumMap::from(|dir| {
+                self.cardinals[dir] & self.position.pieces(color.enemy())
+            }),
+            knights: EnumMap::from(|dir| self.knights[dir] & self.position.pieces(color.enemy())),
+        };
+        let others = DirGolem {
+            position: self.position,
+            cardinals: EnumMap::from(|dir| self.cardinals[dir] & !captures.cardinals[dir]),
+            knights: EnumMap::from(|dir| self.knights[dir] & !captures.knights[dir]),
+        };
+        MoveOrderedDirGolem { captures, others }
+    }
+}
+
+#[derive(Debug)]
+pub struct MoveOrderedDirGolem<'a> {
+    captures: DirGolem<'a>,
+    others: DirGolem<'a>,
+}
+
+impl<'a> MoveOrderedDirGolem<'a> {
+    pub fn iter<'b>(&'b self) -> impl Iterator<Item = Move> + 'b {
+        self.captures.iter().chain(self.others.iter())
+    }
+}
+
+#[derive(Debug)]
+pub struct Move {
+    pub source: Bitboard,
+    pub target: Bitboard,
 }

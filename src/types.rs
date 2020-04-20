@@ -156,3 +156,18 @@ pub enum KnightDirection {
     SouthSouthWest,
     SouthWestWest,
 }
+
+impl KnightDirection {
+    pub fn opposite(self) -> KnightDirection {
+        match self {
+            KnightDirection::NorthNorthEast => KnightDirection::SouthSouthWest,
+            KnightDirection::NorthEastEast => KnightDirection::SouthWestWest,
+            KnightDirection::NorthNorthWest => KnightDirection::SouthSouthEast,
+            KnightDirection::NorthWestWest => KnightDirection::SouthEastEast,
+            KnightDirection::SouthSouthEast => KnightDirection::NorthNorthWest,
+            KnightDirection::SouthEastEast => KnightDirection::NorthWestWest,
+            KnightDirection::SouthSouthWest => KnightDirection::NorthNorthEast,
+            KnightDirection::SouthWestWest => KnightDirection::NorthEastEast,
+        }
+    }
+}

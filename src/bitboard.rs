@@ -211,3 +211,35 @@ impl ops::Not for Bitboard {
         Bitboard(!self.0)
     }
 }
+
+/// An iterator over the individual bits of a bitboard.
+pub struct IntoIter {
+    bits: u64,
+}
+
+impl Iterator for IntoIter {
+    type Item = Bitboard;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // isolate LS1B
+        let bit = self.bits & self.bits.wrapping_neg();
+
+        // reset LS1B
+        self.bits &= self.bits - 1;
+
+        if bit != 0 {
+            Some(Bitboard(bit))
+        } else {
+            None
+        }
+    }
+}
+
+impl IntoIterator for Bitboard {
+    type Item = Bitboard;
+    type IntoIter = IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        IntoIter { bits: self.0 }
+    }
+}
