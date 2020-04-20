@@ -1,15 +1,29 @@
-use crate::types::{Color, Direction, Rank};
+use crate::types::{Color, Direction, KnightDirection, Rank};
 use std::ops;
 
-const NOT_8: u64 = 0x00ffffffffffffff;
 const NOT_1: u64 = 0xffffffffffffff00;
+const NOT_2: u64 = 0xffffffffffff00ff;
+const NOT_7: u64 = 0xff00ffffffffffff;
+const NOT_8: u64 = 0x00ffffffffffffff;
 const NOT_A: u64 = 0xfefefefefefefefe;
+const NOT_B: u64 = 0xfdfdfdfdfdfdfdfd;
+const NOT_G: u64 = 0xbfbfbfbfbfbfbfbf;
 const NOT_H: u64 = 0x7f7f7f7f7f7f7f7f;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Bitboard(u64);
 
 impl Bitboard {
+    /// Creates a bitboard from a raw integer value.
+    ///
+    /// # Bit order
+    ///
+    /// Bits 0..63 are assigned to board squares in row-major order (a1, a2, ..., b1, b2, ...),
+    /// starting with a1 at the least-significant bit.
+    pub fn new(x: u64) -> Bitboard {
+        Bitboard(x)
+    }
+
     pub fn empty() -> Bitboard {
         Bitboard(0)
     }
@@ -22,6 +36,14 @@ impl Bitboard {
         Bitboard(0x00000000000000ff << rank.bitboard_offset())
     }
 
+    pub fn is_empty(self) -> bool {
+        self == Bitboard::empty()
+    }
+
+    pub fn population_count(self) -> u32 {
+        self.0.count_ones()
+    }
+
     pub fn shift(self, direction: Direction) -> Bitboard {
         let (offset, mask) = match direction {
             Direction::North => (8, NOT_8),
@@ -32,6 +54,20 @@ impl Bitboard {
             Direction::NorthWest => (7, NOT_8 & NOT_A),
             Direction::SouthEast => (64 - 7, NOT_1 & NOT_H),
             Direction::SouthWest => (64 - 9, NOT_1 & NOT_A),
+        };
+        Bitboard((self.0 & mask).rotate_left(offset))
+    }
+
+    pub fn knight_shift(self, direction: KnightDirection) -> Bitboard {
+        let (offset, mask) = match direction {
+            KnightDirection::NorthNorthEast => (17, NOT_8 & NOT_7 & NOT_H),
+            KnightDirection::NorthEastEast => (10, NOT_8 & NOT_G & NOT_H),
+            KnightDirection::NorthNorthWest => (15, NOT_8 & NOT_7 & NOT_A),
+            KnightDirection::NorthWestWest => (6, NOT_8 & NOT_B & NOT_A),
+            KnightDirection::SouthSouthEast => (64 - 15, NOT_1 & NOT_2 & NOT_H),
+            KnightDirection::SouthEastEast => (64 - 6, NOT_1 & NOT_G & NOT_H),
+            KnightDirection::SouthSouthWest => (64 - 17, NOT_1 & NOT_2 & NOT_A),
+            KnightDirection::SouthWestWest => (64 - 10, NOT_1 & NOT_B & NOT_A),
         };
         Bitboard((self.0 & mask).rotate_left(offset))
     }
@@ -69,6 +105,54 @@ impl Bitboard {
 
     pub fn sliding_attacks(self, empty: Bitboard, direction: Direction) -> Bitboard {
         self.occluded_fill(empty, direction).shift(direction)
+    }
+
+    /// The squares which are [attacked by pawns] of the given color in the eastern direction.
+    ///
+    /// [attacked by pawns]: https://www.chessprogramming.org/Pawn_Attacks_(Bitboards)
+    pub fn pawn_east_attacks(self, color: Color) -> Bitboard {
+        self.shift_forward_east(color)
+    }
+
+    /// The squares which are [attacked by pawns] of the given color in the western direction.
+    ///
+    /// [attacked by pawns]: https://www.chessprogramming.org/Pawn_Attacks_(Bitboards)
+    pub fn pawn_west_attacks(self, color: Color) -> Bitboard {
+        self.shift_forward_west(color)
+    }
+
+    pub fn pawn_attacks(self, color: Color) -> Bitboard {
+        self.pawn_east_attacks(color) | self.pawn_west_attacks(color)
+    }
+
+    /// The squares which are [attacked by knights].
+    ///
+    /// [attacked by knights]: https://www.chessprogramming.org/Knight_Pattern
+    pub fn knight_attacks(self) -> Bitboard {
+        let east_one = self.shift(Direction::East);
+        let west_one = self.shift(Direction::West);
+        let east_two = east_one.shift(Direction::East);
+        let west_two = west_one.shift(Direction::West);
+
+        (east_two | west_two).shift(Direction::North)
+            | (east_two | west_two).shift(Direction::South)
+            | (east_one | west_one)
+                .shift(Direction::North)
+                .shift(Direction::North)
+            | (east_one | west_one)
+                .shift(Direction::South)
+                .shift(Direction::South)
+    }
+
+    /// The squares which are [attacked by the king].
+    ///
+    /// [attacked by the king]: https://www.chessprogramming.org/King_Pattern
+    pub fn king_attacks(self) -> Bitboard {
+        let east_west = self.shift(Direction::East) | self.shift(Direction::West);
+
+        east_west
+            | (east_west | self).shift(Direction::North)
+            | (east_west | self).shift(Direction::South)
     }
 }
 

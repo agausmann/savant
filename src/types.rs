@@ -23,6 +23,13 @@ impl Color {
             Color::Black => Color::White,
         }
     }
+
+    pub fn back_rank(self) -> Rank {
+        match self {
+            Color::White => Rank::R1,
+            Color::Black => Rank::R8,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -100,4 +107,52 @@ pub enum Direction {
     NorthWest,
     SouthEast,
     SouthWest,
+}
+
+impl Direction {
+    pub fn opposite(self) -> Direction {
+        match self {
+            Direction::North => Direction::South,
+            Direction::South => Direction::North,
+            Direction::East => Direction::West,
+            Direction::West => Direction::East,
+            Direction::NorthEast => Direction::SouthWest,
+            Direction::NorthWest => Direction::SouthEast,
+            Direction::SouthEast => Direction::NorthWest,
+            Direction::SouthWest => Direction::NorthEast,
+        }
+    }
+
+    pub fn forward(color: Color) -> Direction {
+        match color {
+            Color::White => Direction::North,
+            Color::Black => Direction::South,
+        }
+    }
+
+    pub fn forward_east(color: Color) -> Direction {
+        match color {
+            Color::White => Direction::NorthEast,
+            Color::Black => Direction::SouthEast,
+        }
+    }
+
+    pub fn forward_west(color: Color) -> Direction {
+        match color {
+            Color::White => Direction::NorthWest,
+            Color::Black => Direction::SouthWest,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Enum)]
+pub enum KnightDirection {
+    NorthNorthEast,
+    NorthEastEast,
+    NorthNorthWest,
+    NorthWestWest,
+    SouthSouthEast,
+    SouthEastEast,
+    SouthSouthWest,
+    SouthWestWest,
 }
