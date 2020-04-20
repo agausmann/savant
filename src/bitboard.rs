@@ -1,14 +1,86 @@
 use crate::types::{Color, Direction, File, KnightDirection, Rank, RankFile};
 use std::ops;
 
-const NOT_1: u64 = 0xffffffffffffff00;
-const NOT_2: u64 = 0xffffffffffff00ff;
-const NOT_7: u64 = 0xff00ffffffffffff;
-const NOT_8: u64 = 0x00ffffffffffffff;
-const NOT_A: u64 = 0xfefefefefefefefe;
-const NOT_B: u64 = 0xfdfdfdfdfdfdfdfd;
-const NOT_G: u64 = 0xbfbfbfbfbfbfbfbf;
-const NOT_H: u64 = 0x7f7f7f7f7f7f7f7f;
+const NOT_1: Bitboard = bitboard![
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1
+    . . . . . . . .
+];
+const NOT_2: Bitboard = bitboard![
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1
+    . . . . . . . .
+    1 1 1 1 1 1 1 1
+];
+const NOT_7: Bitboard = bitboard![
+    1 1 1 1 1 1 1 1
+    . . . . . . . .
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1
+];
+const NOT_8: Bitboard = bitboard![
+    . . . . . . . .
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1
+];
+const NOT_A: Bitboard = bitboard![
+    . 1 1 1 1 1 1 1
+    . 1 1 1 1 1 1 1
+    . 1 1 1 1 1 1 1
+    . 1 1 1 1 1 1 1
+    . 1 1 1 1 1 1 1
+    . 1 1 1 1 1 1 1
+    . 1 1 1 1 1 1 1
+    . 1 1 1 1 1 1 1
+];
+const NOT_B: Bitboard = bitboard![
+    1 . 1 1 1 1 1 1
+    1 . 1 1 1 1 1 1
+    1 . 1 1 1 1 1 1
+    1 . 1 1 1 1 1 1
+    1 . 1 1 1 1 1 1
+    1 . 1 1 1 1 1 1
+    1 . 1 1 1 1 1 1
+    1 . 1 1 1 1 1 1
+];
+const NOT_G: Bitboard = bitboard![
+    1 1 1 1 1 1 . 1
+    1 1 1 1 1 1 . 1
+    1 1 1 1 1 1 . 1
+    1 1 1 1 1 1 . 1
+    1 1 1 1 1 1 . 1
+    1 1 1 1 1 1 . 1
+    1 1 1 1 1 1 . 1
+    1 1 1 1 1 1 . 1
+];
+const NOT_H: Bitboard = bitboard![
+    1 1 1 1 1 1 1 .
+    1 1 1 1 1 1 1 .
+    1 1 1 1 1 1 1 .
+    1 1 1 1 1 1 1 .
+    1 1 1 1 1 1 1 .
+    1 1 1 1 1 1 1 .
+    1 1 1 1 1 1 1 .
+    1 1 1 1 1 1 1 .
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Bitboard(u64);
@@ -20,16 +92,34 @@ impl Bitboard {
     ///
     /// Bits 0..63 are assigned to board squares in row-major order (a1, a2, ..., b1, b2, ...),
     /// starting with a1 at the least-significant bit.
-    pub fn new(x: u64) -> Bitboard {
+    pub const fn new(x: u64) -> Bitboard {
         Bitboard(x)
     }
 
-    pub fn empty() -> Bitboard {
-        Bitboard(0)
+    pub const fn empty() -> Bitboard {
+        bitboard![
+            . . . . . . . .
+            . . . . . . . .
+            . . . . . . . .
+            . . . . . . . .
+            . . . . . . . .
+            . . . . . . . .
+            . . . . . . . .
+            . . . . . . . .
+        ]
     }
 
-    pub fn universe() -> Bitboard {
-        !Bitboard::empty()
+    pub const fn universe() -> Bitboard {
+        bitboard![
+            1 1 1 1 1 1 1 1
+            1 1 1 1 1 1 1 1
+            1 1 1 1 1 1 1 1
+            1 1 1 1 1 1 1 1
+            1 1 1 1 1 1 1 1
+            1 1 1 1 1 1 1 1
+            1 1 1 1 1 1 1 1
+            1 1 1 1 1 1 1 1
+        ]
     }
 
     pub fn rank(rank: Rank) -> Bitboard {
@@ -63,7 +153,7 @@ impl Bitboard {
             Direction::SouthEast => (64 - 7, NOT_1 & NOT_H),
             Direction::SouthWest => (64 - 9, NOT_1 & NOT_A),
         };
-        Bitboard((self.0 & mask).rotate_left(offset))
+        Bitboard((self & mask).0.rotate_left(offset))
     }
 
     pub fn knight_shift(self, direction: KnightDirection) -> Bitboard {
@@ -77,7 +167,7 @@ impl Bitboard {
             KnightDirection::SouthSouthWest => (64 - 17, NOT_1 & NOT_2 & NOT_A),
             KnightDirection::SouthWestWest => (64 - 10, NOT_1 & NOT_B & NOT_A),
         };
-        Bitboard((self.0 & mask).rotate_left(offset))
+        Bitboard((self & mask).0.rotate_left(offset))
     }
 
     pub fn shift_forward(self, color: Color) -> Bitboard {

@@ -30,7 +30,7 @@ mod tests {
             . . . . . . . .
             . . . . . . . .
         ];
-        assert_eq!(bitboard, Bitboard::empty());
+        assert_eq!(bitboard, Bitboard::new(0x0000000000000000));
     }
 
     #[test]
@@ -45,7 +45,7 @@ mod tests {
             1 1 1 1 1 1 1 1
             1 1 1 1 1 1 1 1
         ];
-        assert_eq!(bitboard, Bitboard::universe());
+        assert_eq!(bitboard, Bitboard::new(0xffffffffffffffff));
     }
 
     #[test]
