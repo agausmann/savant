@@ -204,6 +204,32 @@ impl Rank {
             _ => None,
         }
     }
+
+    pub fn north(self) -> Option<Rank> {
+        match self {
+            Rank::R1 => Some(Rank::R2),
+            Rank::R2 => Some(Rank::R3),
+            Rank::R3 => Some(Rank::R4),
+            Rank::R4 => Some(Rank::R5),
+            Rank::R5 => Some(Rank::R6),
+            Rank::R6 => Some(Rank::R7),
+            Rank::R7 => Some(Rank::R8),
+            Rank::R8 => None,
+        }
+    }
+
+    pub fn south(self) -> Option<Rank> {
+        match self {
+            Rank::R1 => None,
+            Rank::R2 => Some(Rank::R1),
+            Rank::R3 => Some(Rank::R2),
+            Rank::R4 => Some(Rank::R3),
+            Rank::R5 => Some(Rank::R4),
+            Rank::R6 => Some(Rank::R5),
+            Rank::R7 => Some(Rank::R6),
+            Rank::R8 => Some(Rank::R7),
+        }
+    }
 }
 
 impl fmt::Display for Rank {
@@ -272,6 +298,32 @@ impl File {
             'g' => Some(File::Fg),
             'h' => Some(File::Fh),
             _ => None,
+        }
+    }
+
+    pub fn east(self) -> Option<File> {
+        match self {
+            File::Fa => Some(File::Fb),
+            File::Fb => Some(File::Fc),
+            File::Fc => Some(File::Fd),
+            File::Fd => Some(File::Fe),
+            File::Fe => Some(File::Ff),
+            File::Ff => Some(File::Fg),
+            File::Fg => Some(File::Fh),
+            File::Fh => None,
+        }
+    }
+
+    pub fn west(self) -> Option<File> {
+        match self {
+            File::Fa => None,
+            File::Fb => Some(File::Fa),
+            File::Fc => Some(File::Fb),
+            File::Fd => Some(File::Fc),
+            File::Fe => Some(File::Fd),
+            File::Ff => Some(File::Fe),
+            File::Fg => Some(File::Ff),
+            File::Fh => Some(File::Fg),
         }
     }
 }

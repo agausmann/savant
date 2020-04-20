@@ -1,13 +1,17 @@
 use crate::bitboard::Bitboard;
-use crate::types::{Color, Direction, KnightDirection, Piece, Rank};
+use crate::types::{Color, ColoredPiece, Direction, File, KnightDirection, Piece, Rank, RankFile};
 use enum_map::EnumMap;
+use std::str::FromStr;
 
 #[derive(Debug)]
 pub struct Position {
     pieces: EnumMap<Color, EnumMap<Piece, Bitboard>>,
-    en_passant: Bitboard,
+    next_move: Color,
     kingside_castle: EnumMap<Color, bool>,
     queenside_castle: EnumMap<Color, bool>,
+    en_passant: Option<RankFile>,
+    half_move_clock: u16,
+    full_move: u16,
 }
 
 impl Position {
@@ -34,6 +38,14 @@ impl Position {
             .values()
             .copied()
             .fold(Bitboard::empty(), |acc, item| acc | item)
+    }
+
+    pub fn en_passant_targets(&self) -> Bitboard {
+        if let Some(rank_file) = self.en_passant {
+            Bitboard::square(rank_file)
+        } else {
+            Bitboard::empty()
+        }
     }
 
     /// The squares which are the destination of a [single push] by pawns of the given color.
@@ -73,7 +85,7 @@ impl Position {
     ///
     /// [captured by pawns]: https://www.chessprogramming.org/Pawn_Attacks_(Bitboards)
     pub fn pawn_east_captures(&self, color: Color) -> Bitboard {
-        self.pawn_east_attacks(color) & (self.pieces(color.enemy()) | self.en_passant)
+        self.pawn_east_attacks(color) & (self.pieces(color.enemy()) | self.en_passant_targets())
     }
 
     /// The squares which contain pieces that can be [captured by pawns] of the given color in the
@@ -81,7 +93,7 @@ impl Position {
     ///
     /// [captured by pawns]: https://www.chessprogramming.org/Pawn_Attacks_(Bitboards)
     pub fn pawn_west_captures(&self, color: Color) -> Bitboard {
-        self.pawn_west_attacks(color) & (self.pieces(color.enemy()) | self.en_passant)
+        self.pawn_west_attacks(color) & (self.pieces(color.enemy()) | self.en_passant_targets())
     }
 
     /// The squares which are [attacked by knights] of the given color.
@@ -279,7 +291,7 @@ impl Position {
             knights.knight_shift(KnightDirection::SouthWestWest) & target_mask;
 
         // Pawn captures
-        let pawn_targets = (self.pieces(color.enemy()) & target_mask) | self.en_passant;
+        let pawn_targets = (self.pieces(color.enemy()) & target_mask) | self.en_passant_targets();
         let diagonal_pawns =
             self.pieces[color][Piece::Pawn] & !(all_in_between ^ diagonal_in_between);
         result.cardinals[Direction::forward_east(color)] |=
@@ -361,6 +373,89 @@ impl Position {
         result.cardinals[Direction::West] |= queenside_target & queenside_mask;
 
         result
+    }
+}
+
+impl FromStr for Position {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut result = Position {
+            pieces: EnumMap::new(),
+            next_move: Color::White,
+            en_passant: None,
+            kingside_castle: EnumMap::new(),
+            queenside_castle: EnumMap::new(),
+            half_move_clock: 0,
+            full_move: 0,
+        };
+
+        let mut parts = s.split_whitespace();
+
+        let board = parts
+            .next()
+            .ok_or_else(|| format!("unexpected end of string"))?;
+
+        let mut rank = Rank::R8;
+        for rank_str in board.split('/') {
+            let mut file = File::Fa;
+            for square in rank_str.chars() {
+                if let Some(ColoredPiece(piece, color)) = ColoredPiece::from_char(square) {
+                    result.pieces[color][piece] |= Bitboard::square(RankFile(rank, file));
+                    file = file
+                        .east()
+                        .ok_or_else(|| format!("too many squares given"))?;
+                } else if let Some(x) = square.to_digit(10) {
+                    for _ in 0..x {
+                        file = file
+                            .east()
+                            .ok_or_else(|| format!("too many squares given"))?;
+                    }
+                }
+            }
+            rank = rank
+                .south()
+                .ok_or_else(|| format!("too many ranks given"))?;
+        }
+
+        let next_move = parts
+            .next()
+            .ok_or_else(|| format!("unexpected end of string"))?;
+        result.next_move = next_move.parse()?;
+
+        let castling_rights = parts
+            .next()
+            .ok_or_else(|| format!("unexpected end of string"))?;
+        if castling_rights != "-" {
+            for c in castling_rights.chars() {
+                match c {
+                    'K' => result.kingside_castle[Color::White] = true,
+                    'Q' => result.queenside_castle[Color::White] = true,
+                    'k' => result.kingside_castle[Color::Black] = true,
+                    'q' => result.queenside_castle[Color::Black] = true,
+                    _ => return Err(format!("unexpected flag in castling rights: `{}`", c)),
+                }
+            }
+        }
+
+        let en_passant = parts
+            .next()
+            .ok_or_else(|| format!("unexpected end of string"))?;
+        if en_passant != "-" {
+            result.en_passant = Some(en_passant.parse()?);
+        }
+
+        let half_move_clock = parts
+            .next()
+            .ok_or_else(|| format!("unexpected end of string"))?;
+        result.half_move_clock = half_move_clock.parse().map_err(|e| format!("{}", e))?;
+
+        let full_move = parts
+            .next()
+            .ok_or_else(|| format!("unexpected end of string"))?;
+        result.full_move = full_move.parse().map_err(|e| format!("{}", e))?;
+
+        Ok(result)
     }
 }
 
