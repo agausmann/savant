@@ -1,4 +1,4 @@
-use crate::types::{Color, Direction, KnightDirection, Rank};
+use crate::types::{Color, Direction, File, KnightDirection, Rank, RankFile};
 use std::ops;
 
 const NOT_1: u64 = 0xffffffffffffff00;
@@ -34,6 +34,14 @@ impl Bitboard {
 
     pub fn rank(rank: Rank) -> Bitboard {
         Bitboard(0x00000000000000ff << rank.bitboard_offset())
+    }
+
+    pub fn file(file: File) -> Bitboard {
+        Bitboard(0x0101010101010101 << file.bitboard_offset())
+    }
+
+    pub fn square(rank_file: RankFile) -> Bitboard {
+        Bitboard(0x0000000000000001 << rank_file.bitboard_offset())
     }
 
     pub fn is_empty(self) -> bool {

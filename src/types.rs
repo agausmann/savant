@@ -1,4 +1,6 @@
 use enum_map::Enum;
+use std::fmt::{self, Write};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Enum)]
 pub enum Piece {
@@ -10,6 +12,47 @@ pub enum Piece {
     King,
 }
 
+impl Piece {
+    pub fn to_char(self) -> char {
+        match self {
+            Piece::Pawn => 'P',
+            Piece::Knight => 'N',
+            Piece::Bishop => 'B',
+            Piece::Rook => 'R',
+            Piece::Queen => 'Q',
+            Piece::King => 'K',
+        }
+    }
+
+    pub fn from_char(c: char) -> Option<Piece> {
+        match c.to_ascii_uppercase() {
+            'P' => Some(Piece::Pawn),
+            'N' => Some(Piece::Knight),
+            'B' => Some(Piece::Bishop),
+            'R' => Some(Piece::Rook),
+            'Q' => Some(Piece::Queen),
+            'K' => Some(Piece::King),
+            _ => None,
+        }
+    }
+}
+
+impl fmt::Display for Piece {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_char(self.to_char())
+    }
+}
+
+impl FromStr for Piece {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.parse().map_err(|e| format!("{}", e)).and_then(|c| {
+            Self::from_char(c).ok_or(format!("`{}` does not correspond to a piece type", c))
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Enum)]
 pub enum Color {
     White,
@@ -17,6 +60,21 @@ pub enum Color {
 }
 
 impl Color {
+    pub fn to_char(self) -> char {
+        match self {
+            Color::White => 'w',
+            Color::Black => 'b',
+        }
+    }
+
+    pub fn from_char(c: char) -> Option<Color> {
+        match c.to_ascii_lowercase() {
+            'w' => Some(Color::White),
+            'b' => Some(Color::Black),
+            _ => None,
+        }
+    }
+
     pub fn enemy(self) -> Color {
         match self {
             Color::White => Color::Black,
@@ -32,6 +90,22 @@ impl Color {
     }
 }
 
+impl fmt::Display for Color {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_char(self.to_char())
+    }
+}
+
+impl FromStr for Color {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.parse().map_err(|e| format!("{}", e)).and_then(|c| {
+            Self::from_char(c).ok_or(format!("`{}` does not correspond to a color", c))
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ColoredPiece(pub Piece, pub Color);
 
@@ -42,6 +116,39 @@ impl ColoredPiece {
 
     pub fn color(self) -> Color {
         self.1
+    }
+
+    pub fn to_char(self) -> char {
+        match self.color() {
+            Color::White => self.piece().to_char().to_ascii_uppercase(),
+            Color::Black => self.piece().to_char().to_ascii_lowercase(),
+        }
+    }
+
+    pub fn from_char(c: char) -> Option<ColoredPiece> {
+        let piece = Piece::from_char(c)?;
+        let color = if c.is_ascii_uppercase() {
+            Color::White
+        } else {
+            Color::Black
+        };
+        Some(ColoredPiece(piece, color))
+    }
+}
+
+impl fmt::Display for ColoredPiece {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_char(self.to_char())
+    }
+}
+
+impl FromStr for ColoredPiece {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.parse().map_err(|e| format!("{}", e)).and_then(|c| {
+            Self::from_char(c).ok_or(format!("`{}` does not correspond to a piece type", c))
+        })
     }
 }
 
@@ -70,6 +177,49 @@ impl Rank {
             Rank::R8 => 56,
         }
     }
+
+    pub fn to_char(self) -> char {
+        match self {
+            Rank::R1 => '1',
+            Rank::R2 => '2',
+            Rank::R3 => '3',
+            Rank::R4 => '4',
+            Rank::R5 => '5',
+            Rank::R6 => '6',
+            Rank::R7 => '7',
+            Rank::R8 => '8',
+        }
+    }
+
+    pub fn from_char(c: char) -> Option<Rank> {
+        match c {
+            '1' => Some(Rank::R1),
+            '2' => Some(Rank::R2),
+            '3' => Some(Rank::R3),
+            '4' => Some(Rank::R4),
+            '5' => Some(Rank::R5),
+            '6' => Some(Rank::R6),
+            '7' => Some(Rank::R7),
+            '8' => Some(Rank::R8),
+            _ => None,
+        }
+    }
+}
+
+impl fmt::Display for Rank {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_char(self.to_char())
+    }
+}
+
+impl FromStr for Rank {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.parse().map_err(|e| format!("{}", e)).and_then(|c| {
+            Self::from_char(c).ok_or(format!("`{}` does not correspond to a rank", c))
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Enum)]
@@ -84,6 +234,64 @@ pub enum File {
     Fh,
 }
 
+impl File {
+    pub(crate) fn bitboard_offset(self) -> u8 {
+        match self {
+            File::Fa => 0,
+            File::Fb => 1,
+            File::Fc => 2,
+            File::Fd => 3,
+            File::Fe => 4,
+            File::Ff => 5,
+            File::Fg => 6,
+            File::Fh => 7,
+        }
+    }
+
+    pub fn to_char(self) -> char {
+        match self {
+            File::Fa => 'a',
+            File::Fb => 'b',
+            File::Fc => 'c',
+            File::Fd => 'd',
+            File::Fe => 'e',
+            File::Ff => 'f',
+            File::Fg => 'g',
+            File::Fh => 'h',
+        }
+    }
+
+    pub fn from_char(c: char) -> Option<File> {
+        match c.to_ascii_lowercase() {
+            'a' => Some(File::Fa),
+            'b' => Some(File::Fb),
+            'c' => Some(File::Fc),
+            'd' => Some(File::Fd),
+            'e' => Some(File::Fe),
+            'f' => Some(File::Ff),
+            'g' => Some(File::Fg),
+            'h' => Some(File::Fh),
+            _ => None,
+        }
+    }
+}
+
+impl fmt::Display for File {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_char(self.to_char())
+    }
+}
+
+impl FromStr for File {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.parse().map_err(|e| format!("{}", e)).and_then(|c| {
+            Self::from_char(c).ok_or_else(|| format!("`{}` does not correspond to a file", c))
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RankFile(pub Rank, pub File);
 
@@ -94,6 +302,33 @@ impl RankFile {
 
     pub fn file(self) -> File {
         self.1
+    }
+
+    pub(crate) fn bitboard_offset(self) -> u8 {
+        self.rank().bitboard_offset() + self.file().bitboard_offset()
+    }
+}
+
+impl fmt::Display for RankFile {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_char(self.rank().to_char())?;
+        f.write_char(self.file().to_char())?;
+        Ok(())
+    }
+}
+
+impl FromStr for RankFile {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let boundary = s
+            .char_indices()
+            .nth(1)
+            .ok_or_else(|| format!("not enough characters"))?
+            .0;
+        let rank = s[..boundary].parse()?;
+        let file = s[boundary..].parse()?;
+        Ok(RankFile(rank, file))
     }
 }
 
