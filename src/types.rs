@@ -1,3 +1,4 @@
+use crate::bitboard::Bitboard;
 use enum_map::Enum;
 use std::fmt::{self, Write};
 use std::str::FromStr;
@@ -455,6 +456,48 @@ impl KnightDirection {
             KnightDirection::SouthEastEast => KnightDirection::NorthWestWest,
             KnightDirection::SouthSouthWest => KnightDirection::NorthNorthEast,
             KnightDirection::SouthWestWest => KnightDirection::NorthEastEast,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Move {
+    pub source: RankFile,
+    pub target: RankFile,
+}
+
+impl fmt::Display for Move {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}{}", self.source, self.target)
+    }
+}
+
+impl FromStr for Move {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let boundary = s
+            .char_indices()
+            .nth(2)
+            .ok_or_else(|| format!("not enough characters"))?
+            .0;
+        let source = s[..boundary].parse()?;
+        let target = s[boundary..].parse()?;
+        Ok(Move { source, target })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BitMove {
+    pub source: Bitboard,
+    pub target: Bitboard,
+}
+
+impl From<Move> for BitMove {
+    fn from(move_: Move) -> BitMove {
+        BitMove {
+            source: Bitboard::square(move_.source),
+            target: Bitboard::square(move_.target),
         }
     }
 }

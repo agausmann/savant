@@ -1,5 +1,7 @@
 use crate::bitboard::Bitboard;
-use crate::types::{Color, ColoredPiece, Direction, File, KnightDirection, Piece, Rank, RankFile};
+use crate::types::{
+    BitMove, Color, ColoredPiece, Direction, File, KnightDirection, Piece, Rank, RankFile,
+};
 use enum_map::EnumMap;
 use std::str::FromStr;
 
@@ -467,17 +469,17 @@ pub struct DirGolem<'a> {
 }
 
 impl<'a> DirGolem<'a> {
-    pub fn iter<'b>(&'b self) -> impl Iterator<Item = Move> + 'b {
+    pub fn iter<'b>(&'b self) -> impl Iterator<Item = BitMove> + 'b {
         let cardinals = self.cardinals.iter().flat_map(|(dir, &targets)| {
             targets.into_iter().map(move |target| {
                 let source = target.shift(dir.opposite());
-                Move { source, target }
+                BitMove { source, target }
             })
         });
         let knights = self.knights.iter().flat_map(|(dir, &targets)| {
             targets.into_iter().map(move |target| {
                 let source = target.knight_shift(dir.opposite());
-                Move { source, target }
+                BitMove { source, target }
             })
         });
 
@@ -508,13 +510,7 @@ pub struct MoveOrderedDirGolem<'a> {
 }
 
 impl<'a> MoveOrderedDirGolem<'a> {
-    pub fn iter<'b>(&'b self) -> impl Iterator<Item = Move> + 'b {
+    pub fn iter<'b>(&'b self) -> impl Iterator<Item = BitMove> + 'b {
         self.captures.iter().chain(self.others.iter())
     }
-}
-
-#[derive(Debug)]
-pub struct Move {
-    pub source: Bitboard,
-    pub target: Bitboard,
 }
