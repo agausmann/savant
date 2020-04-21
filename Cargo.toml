@@ -3,8 +3,16 @@ name = "savant"
 version = "0.1.0"
 authors = ["Adam Gausmann <agausmann@fastmail.com>"]
 edition = "2018"
+description = "An experimental chess engine."
+readme = "README.md"
+repository = "https://github.com/agausmann/savant"
+license = "MIT"
+keywords = ["chess", "ai"]
+categories = ["games", "mathematics", "simulation"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[badges]
+travis-ci = { repository = "agausmann/savant", branch = "master" }
+maintenanence = { status = "experimental" }
 
 [dependencies]
 enum-map = "0.6.2"
