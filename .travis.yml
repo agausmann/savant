@@ -1,0 +1,12 @@
+language: rust
+dist: bionic
+rust:
+  - stable
+  - beta
+  - nightly
+os:
+  - linux
+  - windows
+  - osx
+cache: cargo
+
