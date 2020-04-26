@@ -11,7 +11,7 @@ pub struct Position {
     next_move: Color,
     kingside_castle: EnumMap<Color, bool>,
     queenside_castle: EnumMap<Color, bool>,
-    en_passant: Option<RankFile>,
+    en_passant: Bitboard,
     half_move_clock: u16,
     full_move: u16,
 }
@@ -43,11 +43,7 @@ impl Position {
     }
 
     pub fn en_passant_targets(&self) -> Bitboard {
-        if let Some(rank_file) = self.en_passant {
-            Bitboard::square(rank_file)
-        } else {
-            Bitboard::empty()
-        }
+        self.en_passant
     }
 
     /// The squares which are the destination of a [single push] by pawns of the given color.
@@ -387,7 +383,7 @@ impl FromStr for Position {
         let mut result = Position {
             pieces: EnumMap::new(),
             next_move: Color::White,
-            en_passant: None,
+            en_passant: Bitboard::empty(),
             kingside_castle: EnumMap::new(),
             queenside_castle: EnumMap::new(),
             half_move_clock: 0,
@@ -446,7 +442,7 @@ impl FromStr for Position {
             .next()
             .ok_or_else(|| format!("unexpected end of string"))?;
         if en_passant != "-" {
-            result.en_passant = Some(en_passant.parse()?);
+            result.en_passant = Bitboard::square(en_passant.parse()?);
         }
 
         let half_move_clock = parts
