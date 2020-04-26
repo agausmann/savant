@@ -201,8 +201,8 @@ impl Bitboard {
         flood
     }
 
-    pub fn sliding_attacks(self, empty: Bitboard, direction: Direction) -> Bitboard {
-        self.occluded_fill(empty, direction).shift(direction)
+    pub fn sliding_attacks(self, pieces: Bitboard, direction: Direction) -> Bitboard {
+        self.occluded_fill(!pieces, direction).shift(direction)
     }
 
     /// The squares which are [attacked by pawns] of the given color in the eastern direction.

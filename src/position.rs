@@ -135,32 +135,32 @@ impl Position {
 
         // North
         let tmp_slide_attacks = orthogonals.sliding_attacks(king_xray, Direction::North);
-        let tmp_king_attacks =
-            self.pieces[color][Piece::King].sliding_attacks(self.empty_squares(), Direction::South);
+        let tmp_king_attacks = self.pieces[color][Piece::King]
+            .sliding_attacks(self.occupied_squares(), Direction::South);
         any_attacks |= tmp_slide_attacks;
         orthogonal_super_attacks |= tmp_king_attacks;
         vertical_in_between |= tmp_slide_attacks & tmp_king_attacks;
 
         // South
         let tmp_slide_attacks = orthogonals.sliding_attacks(king_xray, Direction::South);
-        let tmp_king_attacks =
-            self.pieces[color][Piece::King].sliding_attacks(self.empty_squares(), Direction::North);
+        let tmp_king_attacks = self.pieces[color][Piece::King]
+            .sliding_attacks(self.occupied_squares(), Direction::North);
         any_attacks |= tmp_slide_attacks;
         orthogonal_super_attacks |= tmp_king_attacks;
         vertical_in_between |= tmp_slide_attacks & tmp_king_attacks;
 
         // East
         let tmp_slide_attacks = orthogonals.sliding_attacks(king_xray, Direction::East);
-        let tmp_king_attacks =
-            self.pieces[color][Piece::King].sliding_attacks(self.empty_squares(), Direction::West);
+        let tmp_king_attacks = self.pieces[color][Piece::King]
+            .sliding_attacks(self.occupied_squares(), Direction::West);
         any_attacks |= tmp_slide_attacks;
         orthogonal_super_attacks |= tmp_king_attacks;
         horizontal_in_between |= tmp_slide_attacks & tmp_king_attacks;
 
         // West
         let tmp_slide_attacks = orthogonals.sliding_attacks(king_xray, Direction::West);
-        let tmp_king_attacks =
-            self.pieces[color][Piece::King].sliding_attacks(self.empty_squares(), Direction::East);
+        let tmp_king_attacks = self.pieces[color][Piece::King]
+            .sliding_attacks(self.occupied_squares(), Direction::East);
         any_attacks |= tmp_slide_attacks;
         orthogonal_super_attacks |= tmp_king_attacks;
         horizontal_in_between |= tmp_slide_attacks & tmp_king_attacks;
@@ -171,7 +171,7 @@ impl Position {
         // NorthEast
         let tmp_slide_attacks = diagonals.sliding_attacks(king_xray, Direction::NorthEast);
         let tmp_king_attacks = self.pieces[color][Piece::King]
-            .sliding_attacks(self.empty_squares(), Direction::SouthWest);
+            .sliding_attacks(self.occupied_squares(), Direction::SouthWest);
         any_attacks |= tmp_slide_attacks;
         diagonal_super_attacks |= tmp_king_attacks;
         diagonal_in_between |= tmp_slide_attacks & tmp_king_attacks;
@@ -179,7 +179,7 @@ impl Position {
         // NorthWest
         let tmp_slide_attacks = diagonals.sliding_attacks(king_xray, Direction::NorthWest);
         let tmp_king_attacks = self.pieces[color][Piece::King]
-            .sliding_attacks(self.empty_squares(), Direction::SouthEast);
+            .sliding_attacks(self.occupied_squares(), Direction::SouthEast);
         any_attacks |= tmp_slide_attacks;
         diagonal_super_attacks |= tmp_king_attacks;
         antidiag_in_between |= tmp_slide_attacks & tmp_king_attacks;
@@ -187,7 +187,7 @@ impl Position {
         // SouthEast
         let tmp_slide_attacks = diagonals.sliding_attacks(king_xray, Direction::SouthEast);
         let tmp_king_attacks = self.pieces[color][Piece::King]
-            .sliding_attacks(self.empty_squares(), Direction::NorthWest);
+            .sliding_attacks(self.occupied_squares(), Direction::NorthWest);
         any_attacks |= tmp_slide_attacks;
         diagonal_super_attacks |= tmp_king_attacks;
         antidiag_in_between |= tmp_slide_attacks & tmp_king_attacks;
@@ -195,7 +195,7 @@ impl Position {
         // SouthWest
         let tmp_slide_attacks = diagonals.sliding_attacks(king_xray, Direction::SouthWest);
         let tmp_king_attacks = self.pieces[color][Piece::King]
-            .sliding_attacks(self.empty_squares(), Direction::NorthEast);
+            .sliding_attacks(self.occupied_squares(), Direction::NorthEast);
         any_attacks |= tmp_slide_attacks;
         diagonal_super_attacks |= tmp_king_attacks;
         diagonal_in_between |= tmp_slide_attacks & tmp_king_attacks;
@@ -248,28 +248,28 @@ impl Position {
         let unpinned_antidiags = self_diagonals & !(all_in_between ^ antidiag_in_between);
 
         result.cardinals[Direction::North] = unpinned_verticals
-            .sliding_attacks(self.empty_squares(), Direction::North)
+            .sliding_attacks(self.occupied_squares(), Direction::North)
             & target_mask;
         result.cardinals[Direction::South] = unpinned_verticals
-            .sliding_attacks(self.empty_squares(), Direction::South)
+            .sliding_attacks(self.occupied_squares(), Direction::South)
             & target_mask;
         result.cardinals[Direction::East] = unpinned_horizontals
-            .sliding_attacks(self.empty_squares(), Direction::East)
+            .sliding_attacks(self.occupied_squares(), Direction::East)
             & target_mask;
         result.cardinals[Direction::West] = unpinned_horizontals
-            .sliding_attacks(self.empty_squares(), Direction::West)
+            .sliding_attacks(self.occupied_squares(), Direction::West)
             & target_mask;
         result.cardinals[Direction::NorthEast] = unpinned_diagonals
-            .sliding_attacks(self.empty_squares(), Direction::NorthEast)
+            .sliding_attacks(self.occupied_squares(), Direction::NorthEast)
             & target_mask;
         result.cardinals[Direction::NorthWest] = unpinned_antidiags
-            .sliding_attacks(self.empty_squares(), Direction::NorthWest)
+            .sliding_attacks(self.occupied_squares(), Direction::NorthWest)
             & target_mask;
         result.cardinals[Direction::SouthEast] = unpinned_antidiags
-            .sliding_attacks(self.empty_squares(), Direction::SouthEast)
+            .sliding_attacks(self.occupied_squares(), Direction::SouthEast)
             & target_mask;
         result.cardinals[Direction::SouthWest] = unpinned_diagonals
-            .sliding_attacks(self.empty_squares(), Direction::SouthWest)
+            .sliding_attacks(self.occupied_squares(), Direction::SouthWest)
             & target_mask;
 
         // Knights
@@ -294,13 +294,15 @@ impl Position {
 
         // Pawn captures
         let pawn_targets = (self.pieces(color.enemy()) & target_mask) | self.en_passant_targets();
-        let diagonal_pawns =
-            self.pieces[color][Piece::Pawn] & !(all_in_between ^ diagonal_in_between);
+        let (east_in_between, west_in_between) = match color {
+            Color::White => (diagonal_in_between, antidiag_in_between),
+            Color::Black => (antidiag_in_between, diagonal_in_between),
+        };
+        let diagonal_pawns = self.pieces[color][Piece::Pawn] & !(all_in_between ^ east_in_between);
         result.cardinals[Direction::forward_east(color)] |=
             diagonal_pawns.shift_forward_east(color) & pawn_targets;
 
-        let antidiag_pawns =
-            self.pieces[color][Piece::Pawn] & !(all_in_between ^ antidiag_in_between);
+        let antidiag_pawns = self.pieces[color][Piece::Pawn] & !(all_in_between ^ west_in_between);
         result.cardinals[Direction::forward_west(color)] |=
             antidiag_pawns.shift_forward_west(color) & pawn_targets;
 
