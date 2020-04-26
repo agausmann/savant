@@ -326,4 +326,36 @@ impl Iterator for Bitboard {
             None
         }
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.population_count() as usize;
+        (len, Some(len))
+    }
 }
+
+impl DoubleEndedIterator for Bitboard {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        // set all bits below MS1B
+        let mut fill = self.0;
+        fill |= fill >> 32;
+        fill |= fill >> 16;
+        fill |= fill >> 8;
+        fill |= fill >> 4;
+        fill |= fill >> 2;
+        fill |= fill >> 1;
+
+        // calculate MS1B
+        let bit = (fill >> 1) + 1;
+
+        // reset MS1B
+        self.0 &= fill >> 1;
+
+        if bit != 0 {
+            Some(Bitboard(bit))
+        } else {
+            None
+        }
+    }
+}
+
+impl ExactSizeIterator for Bitboard {}
