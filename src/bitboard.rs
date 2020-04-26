@@ -252,6 +252,22 @@ impl Bitboard {
             | (east_west | self).shift(Direction::North)
             | (east_west | self).shift(Direction::South)
     }
+
+    pub fn fill(self, direction: Direction) -> Bitboard {
+        self.occluded_fill(Bitboard::universe(), direction)
+    }
+
+    pub fn scan_ray(self, targets: Bitboard, direction: Direction) -> Bitboard {
+        let mut inline_targets = targets | self.fill(direction);
+        match direction {
+            Direction::North | Direction::East | Direction::NorthEast | Direction::NorthWest => {
+                inline_targets.next().unwrap_or(Bitboard::empty())
+            }
+            Direction::South | Direction::West | Direction::SouthEast | Direction::SouthWest => {
+                inline_targets.next_back().unwrap_or(Bitboard::empty())
+            }
+        }
+    }
 }
 
 impl Default for Bitboard {

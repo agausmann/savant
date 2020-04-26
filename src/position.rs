@@ -507,8 +507,10 @@ impl<'a> Iterator for DirGolem<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         for (direction, bits) in &mut self.cardinals {
             if let Some(target) = bits.next() {
-                // TODO scan, not shift
-                let source = bits.shift(direction.opposite());
+                let source = bits.scan_ray(
+                    self.position.pieces(self.position.next_move),
+                    direction.opposite(),
+                );
                 return Some(BitMove { source, target });
             }
         }
