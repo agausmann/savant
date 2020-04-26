@@ -459,7 +459,7 @@ impl FromStr for Position {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DirGolem<'a> {
     position: &'a Position,
     cardinals: EnumMap<Direction, Bitboard>,
@@ -501,14 +501,37 @@ impl<'a> DirGolem<'a> {
     }
 }
 
-#[derive(Debug)]
+impl<'a> Iterator for DirGolem<'a> {
+    type Item = BitMove;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        for (direction, bits) in &mut self.cardinals {
+            if let Some(target) = bits.next() {
+                // TODO scan, not shift
+                let source = bits.shift(direction.opposite());
+                return Some(BitMove { source, target });
+            }
+        }
+        for (direction, bits) in &mut self.knights {
+            if let Some(target) = bits.next() {
+                let source = bits.knight_shift(direction.opposite());
+                return Some(BitMove { source, target });
+            }
+        }
+        None
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct MoveOrderedDirGolem<'a> {
     captures: DirGolem<'a>,
     others: DirGolem<'a>,
 }
 
-impl<'a> MoveOrderedDirGolem<'a> {
-    pub fn iter<'b>(&'b self) -> impl Iterator<Item = BitMove> + 'b {
-        self.captures.iter().chain(self.others.iter())
+impl<'a> Iterator for MoveOrderedDirGolem<'a> {
+    type Item = BitMove;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.captures.next().or_else(|| self.others.next())
     }
 }
