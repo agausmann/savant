@@ -501,23 +501,6 @@ pub struct DirGolem<'a> {
 }
 
 impl<'a> DirGolem<'a> {
-    pub fn iter<'b>(&'b self) -> impl Iterator<Item = BitMove> + 'b {
-        let cardinals = self.cardinals.iter().flat_map(|(dir, &targets)| {
-            targets.into_iter().map(move |target| {
-                let source = target.shift(dir.opposite());
-                BitMove { source, target }
-            })
-        });
-        let knights = self.knights.iter().flat_map(|(dir, &targets)| {
-            targets.into_iter().map(move |target| {
-                let source = target.knight_shift(dir.opposite());
-                BitMove { source, target }
-            })
-        });
-
-        cardinals.chain(knights)
-    }
-
     pub fn move_ordered(self, color: Color) -> MoveOrderedDirGolem<'a> {
         let captures = DirGolem {
             position: self.position,
