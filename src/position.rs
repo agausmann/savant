@@ -5,7 +5,7 @@ use crate::types::{
 use enum_map::EnumMap;
 use std::str::FromStr;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Position {
     pieces: EnumMap<Color, EnumMap<Piece, Bitboard>>,
     next_move: Color,
@@ -108,11 +108,52 @@ impl Position {
         self.pieces[color][Piece::King].king_attacks()
     }
 
+    pub fn make_move(&mut self, bit_move: BitMove) {
+        if !(bit_move.source & self.pieces[self.next_move][Piece::Pawn]).is_empty()
+            && !(bit_move.target & Bitboard::rank(self.next_move.double_push_rank())).is_empty()
+        {
+            self.en_passant = bit_move.source.shift_forward(self.next_move);
+        } else {
+            self.en_passant = Bitboard::empty();
+        }
+
+        let kingside_source = Bitboard::new(0x90 << self.next_move.back_rank().bitboard_offset());
+        let queenside_source = Bitboard::new(0x11 << self.next_move.back_rank().bitboard_offset());
+        self.kingside_castle[self.next_move] &= (kingside_source & bit_move.source).is_empty();
+        self.queenside_castle[self.next_move] &= (queenside_source & bit_move.source).is_empty();
+
+        if (bit_move.source & self.pieces[self.next_move][Piece::Pawn]).is_empty()
+            && (bit_move.target & self.pieces(self.next_move.enemy())).is_empty()
+        {
+            self.half_move_clock += 1;
+        } else {
+            self.half_move_clock = 0;
+        }
+
+        if self.next_move == Color::Black {
+            self.full_move += 1;
+        }
+
+        for self_pieces in self.pieces[self.next_move].values_mut() {
+            if !(bit_move.source & *self_pieces).is_empty() {
+                *self_pieces &= !bit_move.source;
+                *self_pieces |= bit_move.target;
+            }
+        }
+        for enemy_pieces in self.pieces[self.next_move.enemy()].values_mut() {
+            *enemy_pieces &= !bit_move.target;
+        }
+
+        self.next_move = self.next_move.enemy();
+    }
+
     /// Direction-wise Generation of Legal Moves ([DirGolem]).
     ///
     /// [DirGolem]: https://www.chessprogramming.org/DirGolem
-    pub fn dir_golem(&self, color: Color) -> DirGolem {
+    pub fn dir_golem(&self) -> DirGolem {
         //TODO test
+
+        let color = self.next_move;
 
         // Generate enemy attack and in-between sets to detect pinned pieces and king taboo
         // squares.
@@ -308,12 +349,9 @@ impl Position {
         let single_pushes = push_pawns.shift_forward(color) & self.empty_squares();
         result.cardinals[Direction::forward(color)] |= single_pushes;
 
-        let double_push_rank = match color {
-            Color::White => Bitboard::rank(Rank::R4),
-            Color::Black => Bitboard::rank(Rank::R5),
-        };
-        let double_pushes =
-            single_pushes.shift_forward(color) & self.empty_squares() & double_push_rank;
+        let double_pushes = single_pushes.shift_forward(color)
+            & self.empty_squares()
+            & Bitboard::rank(color.double_push_rank());
         result.cardinals[Direction::forward(color)] |= double_pushes;
 
         // King
@@ -396,26 +434,26 @@ impl FromStr for Position {
             .next()
             .ok_or_else(|| format!("unexpected end of string"))?;
 
-        let mut rank = Rank::R8;
+        let mut maybe_rank = Some(Rank::R8);
         for rank_str in board.split('/') {
-            let mut file = File::Fa;
+            let rank = maybe_rank.ok_or_else(|| format!("too many ranks given"))?;
+
+            let mut maybe_file = Some(File::Fa);
             for square in rank_str.chars() {
+                let file = maybe_file.ok_or_else(|| format!("too many squares given"))?;
+
                 if let Some(ColoredPiece(piece, color)) = ColoredPiece::from_char(square) {
                     result.pieces[color][piece] |= Bitboard::square(RankFile(rank, file));
-                    file = file
-                        .east()
-                        .ok_or_else(|| format!("too many squares given"))?;
+                    maybe_file = file.east();
                 } else if let Some(x) = square.to_digit(10) {
                     for _ in 0..x {
-                        file = file
-                            .east()
-                            .ok_or_else(|| format!("too many squares given"))?;
+                        maybe_file = maybe_file.and_then(|file| file.east());
                     }
+                } else {
+                    return Err(format!("unknown square specifier {:?}", square));
                 }
             }
-            rank = rank
-                .south()
-                .ok_or_else(|| format!("too many ranks given"))?;
+            maybe_rank = rank.south();
         }
 
         let next_move = parts
@@ -445,14 +483,10 @@ impl FromStr for Position {
             result.en_passant = Bitboard::square(en_passant.parse()?);
         }
 
-        let half_move_clock = parts
-            .next()
-            .ok_or_else(|| format!("unexpected end of string"))?;
+        let half_move_clock = parts.next().unwrap_or("0");
         result.half_move_clock = half_move_clock.parse().map_err(|e| format!("{}", e))?;
 
-        let full_move = parts
-            .next()
-            .ok_or_else(|| format!("unexpected end of string"))?;
+        let full_move = parts.next().unwrap_or("1");
         result.full_move = full_move.parse().map_err(|e| format!("{}", e))?;
 
         Ok(result)
@@ -535,5 +569,82 @@ impl<'a> Iterator for MoveOrderedDirGolem<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.captures.next().or_else(|| self.others.next())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // example move sequence from the starting position
+    const POSITION_INITIAL: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    const POSITION_1_E4: &str = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+    const POSITION_1_C5: &str = "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2";
+    const POSITION_2_NF3: &str = "rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2";
+
+    // positions useful for perft, sourced from https://www.chessprogramming.org/Perft_Results
+    const PERFT_POSITION_2: &str =
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -";
+    const PERFT_POSITION_3: &str = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -";
+    const PERFT_POSITION_4: &str =
+        "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1";
+
+    fn assert_position(position: &str) {
+        let _position: Position = position.parse().unwrap();
+    }
+
+    fn assert_move(start: &str, move_: &str, end: &str) {
+        let mut position: Position = start.parse().unwrap();
+        position.make_move(move_.parse().unwrap());
+        assert_eq!(position, end.parse().unwrap());
+    }
+
+    fn perft(position: Position, depth: usize) -> usize {
+        if depth == 0 {
+            return 1;
+        }
+        position
+            .dir_golem()
+            .map(|move_| {
+                let mut new_position = position.clone();
+                new_position.make_move(move_);
+                perft(new_position, depth - 1)
+            })
+            .sum()
+    }
+
+    #[test]
+    fn parse_initial_position() {
+        assert_position(POSITION_INITIAL);
+    }
+
+    #[test]
+    fn parse_1_e4() {
+        assert_position(POSITION_1_E4);
+    }
+
+    #[test]
+    fn parse_1_e4_c5() {
+        assert_position(POSITION_1_C5);
+    }
+
+    #[test]
+    fn parse_1_e4_c5_2_nf3() {
+        assert_position(POSITION_2_NF3);
+    }
+
+    #[test]
+    fn make_move_1_e4() {
+        assert_move(POSITION_INITIAL, "e2e4", POSITION_1_E4);
+    }
+
+    #[test]
+    fn make_move_1_c5() {
+        assert_move(POSITION_1_E4, "c7c5", POSITION_1_C5);
+    }
+
+    #[test]
+    fn make_move_2_nf3() {
+        assert_move(POSITION_1_C5, "g1f3", POSITION_2_NF3);
     }
 }

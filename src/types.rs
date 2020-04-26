@@ -89,6 +89,13 @@ impl Color {
             Color::Black => Rank::R8,
         }
     }
+
+    pub fn double_push_rank(self) -> Rank {
+        match self {
+            Color::White => Rank::R4,
+            Color::Black => Rank::R5,
+        }
+    }
 }
 
 impl fmt::Display for Color {
@@ -364,8 +371,8 @@ impl RankFile {
 
 impl fmt::Display for RankFile {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_char(self.rank().to_char())?;
         f.write_char(self.file().to_char())?;
+        f.write_char(self.rank().to_char())?;
         Ok(())
     }
 }
@@ -379,8 +386,8 @@ impl FromStr for RankFile {
             .nth(1)
             .ok_or_else(|| format!("not enough characters"))?
             .0;
-        let rank = s[..boundary].parse()?;
-        let file = s[boundary..].parse()?;
+        let file = s[..boundary].parse()?;
+        let rank = s[boundary..].parse()?;
         Ok(RankFile(rank, file))
     }
 }
@@ -493,11 +500,34 @@ pub struct BitMove {
     pub target: Bitboard,
 }
 
+impl fmt::Display for BitMove {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", Move::from(*self))
+    }
+}
+
+impl FromStr for BitMove {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.parse::<Move>().map(Into::into)
+    }
+}
+
 impl From<Move> for BitMove {
     fn from(move_: Move) -> BitMove {
         BitMove {
             source: Bitboard::square(move_.source),
             target: Bitboard::square(move_.target),
+        }
+    }
+}
+
+impl From<BitMove> for Move {
+    fn from(move_: BitMove) -> Move {
+        Move {
+            source: move_.source.ls1b().expect("empty source in bitmove"),
+            target: move_.target.ls1b().expect("empty target in bitmove"),
         }
     }
 }

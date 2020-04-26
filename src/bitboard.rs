@@ -258,7 +258,7 @@ impl Bitboard {
     }
 
     pub fn scan_ray(self, targets: Bitboard, direction: Direction) -> Bitboard {
-        let mut inline_targets = targets | self.fill(direction);
+        let mut inline_targets = targets & self.fill(direction);
         match direction {
             Direction::North | Direction::East | Direction::NorthEast | Direction::NorthWest => {
                 inline_targets.next().unwrap_or(Bitboard::empty())
@@ -266,6 +266,37 @@ impl Bitboard {
             Direction::South | Direction::West | Direction::SouthEast | Direction::SouthWest => {
                 inline_targets.next_back().unwrap_or(Bitboard::empty())
             }
+        }
+    }
+
+    pub fn ls1b(self) -> Option<RankFile> {
+        let offset = self.0.trailing_zeros();
+        if offset < 64 {
+            let rank = match offset & 0b111000 {
+                0 => Rank::R1,
+                8 => Rank::R2,
+                16 => Rank::R3,
+                24 => Rank::R4,
+                32 => Rank::R5,
+                40 => Rank::R6,
+                48 => Rank::R7,
+                56 => Rank::R8,
+                _ => unreachable!(),
+            };
+            let file = match offset & 0b000111 {
+                0 => File::Fa,
+                1 => File::Fb,
+                2 => File::Fc,
+                3 => File::Fd,
+                4 => File::Fe,
+                5 => File::Ff,
+                6 => File::Fg,
+                7 => File::Fh,
+                _ => unreachable!(),
+            };
+            Some(RankFile(rank, file))
+        } else {
+            None
         }
     }
 }
@@ -334,7 +365,7 @@ impl Iterator for Bitboard {
         let bit = self.0 & self.0.wrapping_neg();
 
         // reset LS1B
-        self.0 &= self.0 - 1;
+        self.0 &= self.0.wrapping_sub(1);
 
         if bit != 0 {
             Some(Bitboard(bit))
