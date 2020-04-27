@@ -390,12 +390,12 @@ impl Position {
         let push_pawns = self.pieces[color][Piece::Pawn] & !(all_in_between ^ vertical_in_between);
 
         let single_pushes = push_pawns.shift_forward(color) & self.empty_squares();
-        result.cardinals[Direction::forward(color)] |= single_pushes;
+        result.cardinals[Direction::forward(color)] |= single_pushes & target_mask;
 
         let double_pushes = single_pushes.shift_forward(color)
             & self.empty_squares()
             & Bitboard::rank(color.double_push_rank());
-        result.cardinals[Direction::forward(color)] |= double_pushes;
+        result.cardinals[Direction::forward(color)] |= double_pushes & target_mask;
 
         // King
 
