@@ -608,6 +608,16 @@ mod tests {
     const POSITION_1_C5: &str = "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2";
     const POSITION_2_NF3: &str = "rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2";
 
+    // Starting positions for perft tests, source: https://www.chessprogramming.org/Perft_Results
+    const POSITION_PERFT_2: &str =
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -";
+    const POSITION_PERFT_3: &str = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -";
+    const POSITION_PERFT_4: &str =
+        "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1";
+    const POSITION_PERFT_5: &str = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8";
+    const POSITION_PERFT_6: &str =
+        "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10";
+
     fn assert_position(position: &str) {
         let _position: Position = position.parse().unwrap();
     }
@@ -616,6 +626,11 @@ mod tests {
         let mut position: Position = start.parse().unwrap();
         position.make_move(move_.parse().unwrap());
         assert_eq!(position, end.parse().unwrap());
+    }
+
+    fn assert_perft(start: &str, depth: usize, count: usize) {
+        let position: Position = start.parse().unwrap();
+        assert_eq!(position.perft(depth), count);
     }
 
     #[test]
@@ -651,5 +666,35 @@ mod tests {
     #[test]
     fn make_move_2_nf3() {
         assert_move(POSITION_1_C5, "g1f3", POSITION_2_NF3);
+    }
+
+    #[test]
+    fn perft_initial() {
+        assert_perft(POSITION_INITIAL, 6, 119_060_324);
+    }
+
+    #[test]
+    fn perft_2() {
+        assert_perft(POSITION_PERFT_2, 5, 193_690_690);
+    }
+
+    #[test]
+    fn perft_3() {
+        assert_perft(POSITION_PERFT_3, 7, 178_633_661);
+    }
+
+    #[test]
+    fn perft_4() {
+        assert_perft(POSITION_PERFT_4, 5, 15_833_292);
+    }
+
+    #[test]
+    fn perft_5() {
+        assert_perft(POSITION_PERFT_5, 5, 89_941_194);
+    }
+
+    #[test]
+    fn perft_6() {
+        assert_perft(POSITION_PERFT_6, 5, 164_075_551);
     }
 }

@@ -16,3 +16,7 @@ maintenanence = { status = "experimental" }
 
 [dependencies]
 enum-map = "0.6.2"
+
+[profile.test]
+# For perft tests which are quite expensive
+opt-level = 3
