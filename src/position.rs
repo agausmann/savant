@@ -109,6 +109,15 @@ impl Position {
     }
 
     pub fn make_move(&mut self, bit_move: BitMove) {
+        // TODO the en passant target must strictly be legal.
+        // examples where this is not the case:
+        // - en passant not available in discovered check
+        //      rnbqkbnr/ppp1pppp/8/3pPK2/8/8/PPPP1PPP/RNBQ1BNR w kq - 0 2
+        // - en passant pin
+        //      k7/8/8/3KPp1r/8/8/8/8 w - - 0 2
+        //
+        // potential workaround: allow illegal en passant square in internal state,
+        // explicitly check whether en passant is legal in `dir_golem` and FEN serializers.
         if !(bit_move.source & self.pieces[self.next_move][Piece::Pawn]).is_empty()
             && !(bit_move.target & Bitboard::rank(self.next_move.double_push_rank())).is_empty()
         {
@@ -147,6 +156,19 @@ impl Position {
         self.next_move = self.next_move.enemy();
     }
 
+    pub fn perft(&self, depth: usize) -> usize {
+        if depth == 0 {
+            return 1;
+        }
+        self.dir_golem()
+            .map(|move_| {
+                let mut new_position = self.clone();
+                new_position.make_move(move_);
+                new_position.perft(depth - 1)
+            })
+            .sum()
+    }
+
     /// Direction-wise Generation of Legal Moves ([DirGolem]).
     ///
     /// [DirGolem]: https://www.chessprogramming.org/DirGolem
@@ -155,100 +177,134 @@ impl Position {
 
         let color = self.next_move;
 
-        // Generate enemy attack and in-between sets to detect pinned pieces and king taboo
-        // squares.
+        // In-between sets, calculated by the intersection of sliding attacks in one direction and
+        // the king in the opposite direction, for each of the possible move directions.
+        //
+        // When the king is in check from an enemy piece (zero pieces in between), the in-between
+        // set in that direction will be the set of squares in between the king and enemy piece on
+        // the rank, file, or diagonal that they share, aka the potential target squares for
+        // blocking check.
+        //
+        // In the case of a single piece in between the king and enemy piece, both sliding attack
+        // fills will stop at that piece, and the the in-between set will consist of only that
+        // piece, highlighting it as "pinned" in that direction. (or alternatively, if it is an
+        // enemy piece, a candidate to move for discovered check).
+        //
+        // If there are two or more pieces in between the king and enemy piece, both sliding attack
+        // fills will stop before they reach each other, and the in-between set will be null.
         let mut horizontal_in_between = Bitboard::empty();
         let mut vertical_in_between = Bitboard::empty();
         let mut diagonal_in_between = Bitboard::empty();
         let mut antidiag_in_between = Bitboard::empty();
+
+        // The set of all squares which are attacked by enemy pieces. These squares are "taboo" for
+        // the king, and must be masked out of his potential move set.
         let mut any_attacks = Bitboard::empty();
+
+        // "Super attack" sets for the king, sliding piece scans that originate at the king's
+        // position to detect the sliding pieces that are delivering check.
         let mut orthogonal_super_attacks = Bitboard::empty();
         let mut diagonal_super_attacks = Bitboard::empty();
 
-        let king_xray = self.pieces(color) ^ self.pieces[color][Piece::King];
+        // The set of all pieces except the friendly king, which is removed to detect squares that
+        // are attacked when the king is moved. Otherwise, the king casts a shadow behind him from
+        // the perspective of the piece delivering check, which would make moving backward seem
+        // like a valid move.
+        let king_xray = self.occupied_squares() ^ self.pieces[color][Piece::King];
 
+        // Populate in-between sets and attacks sets with sliding piece moves.
+        //
+        // Enemy sliding pieces are split into two categories, those that can move along the
+        // diagonals and antidiagonals and those that can move along ranks and files.
         let orthogonals =
             self.pieces[color.enemy()][Piece::Rook] | self.pieces[color.enemy()][Piece::Queen];
-
-        // North
-        let tmp_slide_attacks = orthogonals.sliding_attacks(king_xray, Direction::North);
-        let tmp_king_attacks = self.pieces[color][Piece::King]
-            .sliding_attacks(self.occupied_squares(), Direction::South);
-        any_attacks |= tmp_slide_attacks;
-        orthogonal_super_attacks |= tmp_king_attacks;
-        vertical_in_between |= tmp_slide_attacks & tmp_king_attacks;
-
-        // South
-        let tmp_slide_attacks = orthogonals.sliding_attacks(king_xray, Direction::South);
-        let tmp_king_attacks = self.pieces[color][Piece::King]
-            .sliding_attacks(self.occupied_squares(), Direction::North);
-        any_attacks |= tmp_slide_attacks;
-        orthogonal_super_attacks |= tmp_king_attacks;
-        vertical_in_between |= tmp_slide_attacks & tmp_king_attacks;
-
-        // East
-        let tmp_slide_attacks = orthogonals.sliding_attacks(king_xray, Direction::East);
-        let tmp_king_attacks = self.pieces[color][Piece::King]
-            .sliding_attacks(self.occupied_squares(), Direction::West);
-        any_attacks |= tmp_slide_attacks;
-        orthogonal_super_attacks |= tmp_king_attacks;
-        horizontal_in_between |= tmp_slide_attacks & tmp_king_attacks;
-
-        // West
-        let tmp_slide_attacks = orthogonals.sliding_attacks(king_xray, Direction::West);
-        let tmp_king_attacks = self.pieces[color][Piece::King]
-            .sliding_attacks(self.occupied_squares(), Direction::East);
-        any_attacks |= tmp_slide_attacks;
-        orthogonal_super_attacks |= tmp_king_attacks;
-        horizontal_in_between |= tmp_slide_attacks & tmp_king_attacks;
-
         let diagonals =
             self.pieces[color.enemy()][Piece::Bishop] | self.pieces[color.enemy()][Piece::Queen];
 
-        // NorthEast
-        let tmp_slide_attacks = diagonals.sliding_attacks(king_xray, Direction::NorthEast);
-        let tmp_king_attacks = self.pieces[color][Piece::King]
-            .sliding_attacks(self.occupied_squares(), Direction::SouthWest);
-        any_attacks |= tmp_slide_attacks;
-        diagonal_super_attacks |= tmp_king_attacks;
-        diagonal_in_between |= tmp_slide_attacks & tmp_king_attacks;
+        // For each direction, generate the attack sets for the corresponding group of enemy
+        // pieces, and the super attack set for the king in the opposite direction, and update
+        // the cumulative attack, super attack, and in-between sets.
+        let mut generate_sliding_attacks =
+            |direction: Direction,
+             pieces: Bitboard,
+             super_attacks: &mut Bitboard,
+             in_between: &mut Bitboard| {
+                let tmp_slide_attacks = pieces.sliding_attacks(king_xray, direction);
+                let tmp_king_super_attacks = self.pieces[color][Piece::King]
+                    .sliding_attacks(self.occupied_squares(), direction.opposite());
 
-        // NorthWest
-        let tmp_slide_attacks = diagonals.sliding_attacks(king_xray, Direction::NorthWest);
-        let tmp_king_attacks = self.pieces[color][Piece::King]
-            .sliding_attacks(self.occupied_squares(), Direction::SouthEast);
-        any_attacks |= tmp_slide_attacks;
-        diagonal_super_attacks |= tmp_king_attacks;
-        antidiag_in_between |= tmp_slide_attacks & tmp_king_attacks;
+                any_attacks |= tmp_slide_attacks;
+                *super_attacks |= tmp_king_super_attacks;
+                *in_between |= tmp_slide_attacks & tmp_king_super_attacks;
+            };
+        generate_sliding_attacks(
+            Direction::North,
+            orthogonals,
+            &mut orthogonal_super_attacks,
+            &mut vertical_in_between,
+        );
+        generate_sliding_attacks(
+            Direction::South,
+            orthogonals,
+            &mut orthogonal_super_attacks,
+            &mut vertical_in_between,
+        );
+        generate_sliding_attacks(
+            Direction::East,
+            orthogonals,
+            &mut orthogonal_super_attacks,
+            &mut horizontal_in_between,
+        );
+        generate_sliding_attacks(
+            Direction::West,
+            orthogonals,
+            &mut orthogonal_super_attacks,
+            &mut horizontal_in_between,
+        );
+        generate_sliding_attacks(
+            Direction::NorthEast,
+            diagonals,
+            &mut diagonal_super_attacks,
+            &mut diagonal_in_between,
+        );
+        generate_sliding_attacks(
+            Direction::NorthWest,
+            diagonals,
+            &mut diagonal_super_attacks,
+            &mut antidiag_in_between,
+        );
+        generate_sliding_attacks(
+            Direction::SouthEast,
+            diagonals,
+            &mut diagonal_super_attacks,
+            &mut antidiag_in_between,
+        );
+        generate_sliding_attacks(
+            Direction::SouthWest,
+            diagonals,
+            &mut diagonal_super_attacks,
+            &mut diagonal_in_between,
+        );
 
-        // SouthEast
-        let tmp_slide_attacks = diagonals.sliding_attacks(king_xray, Direction::SouthEast);
-        let tmp_king_attacks = self.pieces[color][Piece::King]
-            .sliding_attacks(self.occupied_squares(), Direction::NorthWest);
-        any_attacks |= tmp_slide_attacks;
-        diagonal_super_attacks |= tmp_king_attacks;
-        antidiag_in_between |= tmp_slide_attacks & tmp_king_attacks;
+        // Union of the resulting in between sets.
+        let all_in_between =
+            horizontal_in_between | vertical_in_between | diagonal_in_between | antidiag_in_between;
 
-        // SouthWest
-        let tmp_slide_attacks = diagonals.sliding_attacks(king_xray, Direction::SouthWest);
-        let tmp_king_attacks = self.pieces[color][Piece::King]
-            .sliding_attacks(self.occupied_squares(), Direction::NorthEast);
-        any_attacks |= tmp_slide_attacks;
-        diagonal_super_attacks |= tmp_king_attacks;
-        diagonal_in_between |= tmp_slide_attacks & tmp_king_attacks;
-
-        // Non-sliding pieces
+        // Add non-sliding-piece attacks to the cumulative attack set.
+        // These can't generate pins or be blocked by other pieces, so they don't affect in-between
+        // sets.
         any_attacks |= self.pawn_east_attacks(color.enemy());
         any_attacks |= self.pawn_west_attacks(color.enemy());
         any_attacks |= self.knight_attacks(color.enemy());
         any_attacks |= self.king_attacks(color.enemy());
 
-        // Move generation for current player.
+        // Create a target mask for non-king pieces that accounts for check, double check, and
+        // friendly pieces.
 
-        // Tests/masks for if player is in check.
-        let all_in_between =
-            horizontal_in_between | vertical_in_between | diagonal_in_between | antidiag_in_between;
-        let blocks = all_in_between & self.occupied_squares();
+        // The set of squares that are a target for blocking, if we are in check.
+        let blocks = all_in_between & self.empty_squares();
+
+        // Find the pieces that are currently giving check to the king.
         let check_from = (orthogonal_super_attacks & orthogonals)
             | (diagonal_super_attacks & diagonals)
             | (self.pieces[color][Piece::King].knight_attacks()
@@ -256,80 +312,67 @@ impl Position {
             | (self.pieces[color][Piece::King].pawn_attacks(color)
                 & self.pieces[color.enemy()][Piece::Pawn]);
 
-        let null_if_check = if (any_attacks & self.pieces[color][Piece::King]).is_empty() {
-            Bitboard::universe()
-        } else {
-            Bitboard::empty()
-        };
-        let null_if_double_check = if check_from.population_count() < 2 {
-            Bitboard::universe()
-        } else {
-            Bitboard::empty()
-        };
+        let mut target_mask = !self.pieces(color);
 
-        let check_to = check_from | blocks | null_if_check;
-        let target_mask = !self.pieces(color) & check_to & null_if_double_check;
+        // If we are in check, only allow blocking moves and capture of the enemy attacker.
+        if !check_from.is_empty() {
+            target_mask &= check_from | blocks;
+        }
 
+        // If we are in double check, no blocking or capturing is allowed, the king must move.
+        // Disallow all non-king moves.
+        if check_from.population_count() >= 2 {
+            target_mask = Bitboard::empty()
+        }
+
+        // With the masks above, we are now able to start generating moves.
         let mut result = DirGolem {
             position: self,
             cardinals: EnumMap::new(),
             knights: EnumMap::new(),
         };
 
-        // Sliding pieces
+        // Sliding pieces:
         let self_orthogonals = self.pieces[color][Piece::Rook] | self.pieces[color][Piece::Queen];
         let self_diagonals = self.pieces[color][Piece::Bishop] | self.pieces[color][Piece::Queen];
+
+        // Sets of sliding pieces which are unpinned in the given move direction.
         let unpinned_horizontals = self_orthogonals & !(all_in_between ^ horizontal_in_between);
         let unpinned_verticals = self_orthogonals & !(all_in_between ^ vertical_in_between);
         let unpinned_diagonals = self_diagonals & !(all_in_between ^ diagonal_in_between);
         let unpinned_antidiags = self_diagonals & !(all_in_between ^ antidiag_in_between);
 
-        result.cardinals[Direction::North] = unpinned_verticals
-            .sliding_attacks(self.occupied_squares(), Direction::North)
-            & target_mask;
-        result.cardinals[Direction::South] = unpinned_verticals
-            .sliding_attacks(self.occupied_squares(), Direction::South)
-            & target_mask;
-        result.cardinals[Direction::East] = unpinned_horizontals
-            .sliding_attacks(self.occupied_squares(), Direction::East)
-            & target_mask;
-        result.cardinals[Direction::West] = unpinned_horizontals
-            .sliding_attacks(self.occupied_squares(), Direction::West)
-            & target_mask;
-        result.cardinals[Direction::NorthEast] = unpinned_diagonals
-            .sliding_attacks(self.occupied_squares(), Direction::NorthEast)
-            & target_mask;
-        result.cardinals[Direction::NorthWest] = unpinned_antidiags
-            .sliding_attacks(self.occupied_squares(), Direction::NorthWest)
-            & target_mask;
-        result.cardinals[Direction::SouthEast] = unpinned_antidiags
-            .sliding_attacks(self.occupied_squares(), Direction::SouthEast)
-            & target_mask;
-        result.cardinals[Direction::SouthWest] = unpinned_diagonals
-            .sliding_attacks(self.occupied_squares(), Direction::SouthWest)
-            & target_mask;
+        let mut generate_cardinal_moves = |direction: Direction, sources: Bitboard| {
+            result.cardinals[direction] |=
+                sources.sliding_attacks(self.occupied_squares(), direction) & target_mask;
+        };
+        generate_cardinal_moves(Direction::North, unpinned_verticals);
+        generate_cardinal_moves(Direction::South, unpinned_verticals);
+        generate_cardinal_moves(Direction::East, unpinned_horizontals);
+        generate_cardinal_moves(Direction::West, unpinned_horizontals);
+        generate_cardinal_moves(Direction::NorthEast, unpinned_diagonals);
+        generate_cardinal_moves(Direction::NorthWest, unpinned_antidiags);
+        generate_cardinal_moves(Direction::SouthEast, unpinned_antidiags);
+        generate_cardinal_moves(Direction::SouthWest, unpinned_diagonals);
 
         // Knights
-        let knights = self.pieces[color][Piece::Knight] & !all_in_between;
+        let unpinned_knights = self.pieces[color][Piece::Knight] & !all_in_between;
 
-        result.knights[KnightDirection::NorthNorthEast] =
-            knights.knight_shift(KnightDirection::NorthNorthEast) & target_mask;
-        result.knights[KnightDirection::NorthEastEast] =
-            knights.knight_shift(KnightDirection::NorthEastEast) & target_mask;
-        result.knights[KnightDirection::NorthNorthWest] =
-            knights.knight_shift(KnightDirection::NorthNorthWest) & target_mask;
-        result.knights[KnightDirection::NorthWestWest] =
-            knights.knight_shift(KnightDirection::NorthWestWest) & target_mask;
-        result.knights[KnightDirection::SouthSouthEast] =
-            knights.knight_shift(KnightDirection::SouthSouthEast) & target_mask;
-        result.knights[KnightDirection::SouthEastEast] =
-            knights.knight_shift(KnightDirection::SouthEastEast) & target_mask;
-        result.knights[KnightDirection::SouthSouthWest] =
-            knights.knight_shift(KnightDirection::SouthSouthWest) & target_mask;
-        result.knights[KnightDirection::SouthWestWest] =
-            knights.knight_shift(KnightDirection::SouthWestWest) & target_mask;
+        let mut generate_knight_moves = |direction: KnightDirection| {
+            result.knights[direction] = unpinned_knights.knight_shift(direction) & target_mask;
+        };
+        generate_knight_moves(KnightDirection::NorthNorthEast);
+        generate_knight_moves(KnightDirection::NorthEastEast);
+        generate_knight_moves(KnightDirection::NorthNorthWest);
+        generate_knight_moves(KnightDirection::NorthWestWest);
+        generate_knight_moves(KnightDirection::SouthSouthEast);
+        generate_knight_moves(KnightDirection::SouthEastEast);
+        generate_knight_moves(KnightDirection::SouthSouthWest);
+        generate_knight_moves(KnightDirection::SouthWestWest);
 
         // Pawn captures
+
+        // Capture targets include enemy pieces
         let pawn_targets = (self.pieces(color.enemy()) & target_mask) | self.en_passant_targets();
         let (east_in_between, west_in_between) = match color {
             Color::White => (diagonal_in_between, antidiag_in_between),
@@ -524,7 +567,7 @@ impl<'a> Iterator for DirGolem<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         for (direction, bits) in &mut self.cardinals {
             if let Some(target) = bits.next() {
-                let source = bits.scan_ray(
+                let source = target.scan_ray(
                     self.position.pieces(self.position.next_move),
                     direction.opposite(),
                 );
@@ -533,7 +576,7 @@ impl<'a> Iterator for DirGolem<'a> {
         }
         for (direction, bits) in &mut self.knights {
             if let Some(target) = bits.next() {
-                let source = bits.knight_shift(direction.opposite());
+                let source = target.knight_shift(direction.opposite());
                 return Some(BitMove { source, target });
             }
         }
@@ -565,13 +608,6 @@ mod tests {
     const POSITION_1_C5: &str = "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2";
     const POSITION_2_NF3: &str = "rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2";
 
-    // positions useful for perft, sourced from https://www.chessprogramming.org/Perft_Results
-    const PERFT_POSITION_2: &str =
-        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -";
-    const PERFT_POSITION_3: &str = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -";
-    const PERFT_POSITION_4: &str =
-        "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1";
-
     fn assert_position(position: &str) {
         let _position: Position = position.parse().unwrap();
     }
@@ -580,20 +616,6 @@ mod tests {
         let mut position: Position = start.parse().unwrap();
         position.make_move(move_.parse().unwrap());
         assert_eq!(position, end.parse().unwrap());
-    }
-
-    fn perft(position: Position, depth: usize) -> usize {
-        if depth == 0 {
-            return 1;
-        }
-        position
-            .dir_golem()
-            .map(|move_| {
-                let mut new_position = position.clone();
-                new_position.make_move(move_);
-                perft(new_position, depth - 1)
-            })
-            .sum()
     }
 
     #[test]
