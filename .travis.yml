@@ -6,7 +6,6 @@ rust:
   - nightly
 os:
   - linux
-cache: cargo
 allow_failures:
   - rust: beta
   - rust: nightly
