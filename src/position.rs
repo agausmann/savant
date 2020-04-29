@@ -109,6 +109,13 @@ impl Position {
     }
 
     pub fn make_move(&mut self, bit_move: BitMove) {
+        if !(self.pieces[self.next_move][Piece::Pawn] & bit_move.source).is_empty()
+            && bit_move.target == self.en_passant
+        {
+            self.pieces[self.next_move.enemy()][Piece::Pawn] &=
+                !(self.en_passant.shift_forward(self.next_move.enemy()));
+        }
+
         // TODO the en passant target must strictly be legal.
         // examples where this is not the case:
         // - en passant not available in discovered check
