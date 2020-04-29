@@ -359,6 +359,7 @@ impl Position {
             position: self,
             cardinals: EnumMap::new(),
             knights: EnumMap::new(),
+            pending_promotion: None,
         };
 
         // Sliding pieces:
@@ -570,6 +571,7 @@ pub struct DirGolem<'a> {
     position: &'a Position,
     cardinals: EnumMap<Direction, Bitboard>,
     knights: EnumMap<KnightDirection, Bitboard>,
+    pending_promotion: Option<(Bitboard, Bitboard, Piece)>,
 }
 
 impl<'a> DirGolem<'a> {
@@ -580,11 +582,13 @@ impl<'a> DirGolem<'a> {
                 self.cardinals[dir] & self.position.pieces(color.enemy())
             }),
             knights: EnumMap::from(|dir| self.knights[dir] & self.position.pieces(color.enemy())),
+            pending_promotion: None,
         };
         let others = DirGolem {
             position: self.position,
             cardinals: EnumMap::from(|dir| self.cardinals[dir] & !captures.cardinals[dir]),
             knights: EnumMap::from(|dir| self.knights[dir] & !captures.knights[dir]),
+            pending_promotion: None,
         };
         MoveOrderedDirGolem { captures, others }
     }
@@ -594,19 +598,53 @@ impl<'a> Iterator for DirGolem<'a> {
     type Item = BitMove;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if let Some((source, target, piece)) = self.pending_promotion {
+            let next_piece = match piece {
+                Piece::Rook => Some(Piece::Bishop),
+                Piece::Bishop => Some(Piece::Knight),
+                Piece::Knight => None,
+                _ => unreachable!(),
+            };
+            self.pending_promotion = next_piece.map(|piece| (source, target, piece));
+            let promotion = Some(piece);
+            return Some(BitMove {
+                source,
+                target,
+                promotion,
+            });
+        }
         for (direction, bits) in &mut self.cardinals {
             if let Some(target) = bits.next() {
                 let source = target.scan_ray(
                     self.position.pieces(self.position.next_move),
                     direction.opposite(),
                 );
-                return Some(BitMove { source, target });
+                let promotion = if !(source
+                    & self.position.pieces[self.position.next_move][Piece::Pawn])
+                    .is_empty()
+                    && !(target & Bitboard::rank(self.position.next_move.enemy().back_rank()))
+                        .is_empty()
+                {
+                    self.pending_promotion = Some((source, target, Piece::Rook));
+                    Some(Piece::Queen)
+                } else {
+                    None
+                };
+                return Some(BitMove {
+                    source,
+                    target,
+                    promotion,
+                });
             }
         }
         for (direction, bits) in &mut self.knights {
             if let Some(target) = bits.next() {
                 let source = target.knight_shift(direction.opposite());
-                return Some(BitMove { source, target });
+                return Some(BitMove {
+                    source,
+                    target,
+                    promotion: None,
+                });
             }
         }
         None

@@ -471,11 +471,16 @@ impl KnightDirection {
 pub struct Move {
     pub source: RankFile,
     pub target: RankFile,
+    pub promotion: Option<Piece>,
 }
 
 impl fmt::Display for Move {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}{}", self.source, self.target)
+        write!(f, "{}{}", self.source, self.target)?;
+        if let Some(promotion) = self.promotion {
+            write!(f, "{}", promotion.to_char().to_ascii_lowercase())?;
+        }
+        Ok(())
     }
 }
 
@@ -483,14 +488,24 @@ impl FromStr for Move {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let boundary = s
+        let split_1 = s
             .char_indices()
             .nth(2)
             .ok_or_else(|| format!("not enough characters"))?
             .0;
-        let source = s[..boundary].parse()?;
-        let target = s[boundary..].parse()?;
-        Ok(Move { source, target })
+
+        let split_2 = s.char_indices().nth(4).map(|(i, _c)| i).unwrap_or(s.len());
+        let source = s[..split_1].parse()?;
+        let target = s[split_1..split_2].parse()?;
+        let promotion = match &s[split_2..] {
+            "" => None,
+            other => Some(other.parse()?),
+        };
+        Ok(Move {
+            source,
+            target,
+            promotion,
+        })
     }
 }
 
@@ -498,6 +513,7 @@ impl FromStr for Move {
 pub struct BitMove {
     pub source: Bitboard,
     pub target: Bitboard,
+    pub promotion: Option<Piece>,
 }
 
 impl fmt::Display for BitMove {
@@ -519,6 +535,7 @@ impl From<Move> for BitMove {
         BitMove {
             source: Bitboard::square(move_.source),
             target: Bitboard::square(move_.target),
+            promotion: move_.promotion,
         }
     }
 }
@@ -528,6 +545,7 @@ impl From<BitMove> for Move {
         Move {
             source: move_.source.ls1b().expect("empty source in bitmove"),
             target: move_.target.ls1b().expect("empty target in bitmove"),
+            promotion: move_.promotion,
         }
     }
 }
