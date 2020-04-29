@@ -125,8 +125,12 @@ impl Position {
         //
         // potential workaround: allow illegal en passant square in internal state,
         // explicitly check whether en passant is legal in `dir_golem` and FEN serializers.
-        if !(bit_move.source & self.pieces[self.next_move][Piece::Pawn]).is_empty()
-            && !(bit_move.target & Bitboard::rank(self.next_move.double_push_rank())).is_empty()
+        let double_push_source =
+            Bitboard::rank(self.next_move.back_rank()).shift_forward(self.next_move);
+        let double_push_target = Bitboard::rank(self.next_move.double_push_rank());
+        if !(bit_move.source & self.pieces[self.next_move][Piece::Pawn] & double_push_source)
+            .is_empty()
+            && !(bit_move.target & double_push_target).is_empty()
         {
             self.en_passant = bit_move.source.shift_forward(self.next_move);
         } else {
