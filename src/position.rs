@@ -160,6 +160,13 @@ impl Position {
         self.kingside_castle[self.next_move] &= (kingside_source & bit_move.source).is_empty();
         self.queenside_castle[self.next_move] &= (queenside_source & bit_move.source).is_empty();
 
+        let kingside_target = Bitboard::back_rank(self.next_move.enemy(), 0b10000000);
+        let queenside_target = Bitboard::back_rank(self.next_move.enemy(), 0b00000001);
+        self.kingside_castle[self.next_move.enemy()] &=
+            (kingside_target & bit_move.target).is_empty();
+        self.queenside_castle[self.next_move.enemy()] &=
+            (queenside_target & bit_move.target).is_empty();
+
         if (bit_move.source & self.pieces[self.next_move][Piece::Pawn]).is_empty()
             && (bit_move.target & self.pieces(self.next_move.enemy())).is_empty()
         {
