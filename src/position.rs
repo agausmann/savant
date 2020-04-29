@@ -137,8 +137,26 @@ impl Position {
             self.en_passant = Bitboard::empty();
         }
 
-        let kingside_source = Bitboard::new(0x90 << self.next_move.back_rank().bitboard_offset());
-        let queenside_source = Bitboard::new(0x11 << self.next_move.back_rank().bitboard_offset());
+        let castle_source = Bitboard::back_rank(self.next_move, 0b00010000);
+        let kingside_target = Bitboard::back_rank(self.next_move, 0b01000000);
+        let queenside_target = Bitboard::back_rank(self.next_move, 0b00000100);
+        if !(bit_move.source & self.pieces[self.next_move][Piece::King] & castle_source).is_empty()
+        {
+            if !(bit_move.target & kingside_target).is_empty() {
+                let rook_source = Bitboard::back_rank(self.next_move, 0b10000000);
+                let rook_target = Bitboard::back_rank(self.next_move, 0b00100000);
+                self.pieces[self.next_move][Piece::Rook] &= !rook_source;
+                self.pieces[self.next_move][Piece::Rook] |= rook_target;
+            } else if !(bit_move.target & queenside_target).is_empty() {
+                let rook_source = Bitboard::back_rank(self.next_move, 0b00000001);
+                let rook_target = Bitboard::back_rank(self.next_move, 0b00001000);
+                self.pieces[self.next_move][Piece::Rook] &= !rook_source;
+                self.pieces[self.next_move][Piece::Rook] |= rook_target;
+            }
+        }
+
+        let kingside_source = Bitboard::back_rank(self.next_move, 0b10010000);
+        let queenside_source = Bitboard::back_rank(self.next_move, 0b00010001);
         self.kingside_castle[self.next_move] &= (kingside_source & bit_move.source).is_empty();
         self.queenside_castle[self.next_move] &= (queenside_source & bit_move.source).is_empty();
 
@@ -433,16 +451,16 @@ impl Position {
         // Castling
 
         // vacancies: the squares where pieces must not be present.
-        let kingside_vacancies = Bitboard::new(0b01100000 << color.back_rank().bitboard_offset());
-        let queenside_vacancies = Bitboard::new(0b00001110 << color.back_rank().bitboard_offset());
+        let kingside_vacancies = Bitboard::back_rank(color, 0b01100000);
+        let queenside_vacancies = Bitboard::back_rank(color, 0b00001110);
 
         // vulns: the squares which must not be attacked by enemies.
-        let kingside_vulns = Bitboard::new(0b01110000 << color.back_rank().bitboard_offset());
-        let queenside_vulns = Bitboard::new(0b00011100 << color.back_rank().bitboard_offset());
+        let kingside_vulns = Bitboard::back_rank(color, 0b01110000);
+        let queenside_vulns = Bitboard::back_rank(color, 0b00011100);
 
         // target: the destination square of the king.
-        let kingside_target = Bitboard::new(0b01000000 << color.back_rank().bitboard_offset());
-        let queenside_target = Bitboard::new(0b00000100 << color.back_rank().bitboard_offset());
+        let kingside_target = Bitboard::back_rank(color, 0b01000000);
+        let queenside_target = Bitboard::back_rank(color, 0b00000100);
 
         let kingside_mask = if self.kingside_castle[color]
             & (self.occupied_squares() & kingside_vacancies).is_empty()

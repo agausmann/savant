@@ -134,6 +134,10 @@ impl Bitboard {
         Bitboard(0x0000000000000001 << rank_file.bitboard_offset())
     }
 
+    pub fn back_rank(color: Color, rank: u8) -> Bitboard {
+        Bitboard::new((rank as u64) << color.back_rank().bitboard_offset())
+    }
+
     pub fn is_empty(self) -> bool {
         self == Bitboard::empty()
     }
