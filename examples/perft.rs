@@ -4,17 +4,27 @@ use std::num::NonZeroUsize;
 use std::process::exit;
 
 fn usage() -> ! {
-    eprintln!("Usage: perft <fen> <depth>");
+    eprintln!("Usage: perft <depth> <fen> [<move> ...]");
     exit(1)
 }
 
 fn main() {
     let mut args = env::args();
-    let fen = args.nth(1).unwrap_or_else(|| usage());
-    let depth = args.next().unwrap_or_else(|| usage());
+    let depth = args.nth(1).unwrap_or_else(|| usage());
+    let fen = args.next().unwrap_or_else(|| usage());
+    let moves = args
+        .flat_map(|s| {
+            s.split_whitespace()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
 
-    let position: Position = fen.parse().expect("got invalid FEN");
     let depth: NonZeroUsize = depth.parse().expect("depth must be a positive integer");
+    let mut position: Position = fen.parse().expect("got invalid FEN");
+    for move_ in moves {
+        position.make_move(move_.parse().unwrap());
+    }
 
     let mut total_nodes = 0;
     for move_ in position.dir_golem() {

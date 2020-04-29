@@ -1,3 +1,4 @@
 #!/bin/sh
 
-cargo run --release --example perft -- "$@"
+cargo run -q --release --example perft -- "$@" \
+    | sed '$s/.*: //;s/://'
