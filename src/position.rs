@@ -185,6 +185,10 @@ impl Position {
                 *self_pieces |= bit_move.target;
             }
         }
+        if let Some(promotion) = bit_move.promotion {
+            self.pieces[self.next_move][Piece::Pawn] &= !bit_move.target;
+            self.pieces[self.next_move][promotion] |= bit_move.target;
+        }
         for enemy_pieces in self.pieces[self.next_move.enemy()].values_mut() {
             *enemy_pieces &= !bit_move.target;
         }
