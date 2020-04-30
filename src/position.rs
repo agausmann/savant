@@ -128,9 +128,20 @@ impl Position {
         let double_push_source =
             Bitboard::rank(self.next_move.back_rank()).shift_forward(self.next_move);
         let double_push_target = Bitboard::rank(self.next_move.double_push_rank());
+        let en_passant_sources =
+            bit_move.target.shift(Direction::East) | bit_move.target.shift(Direction::West);
+        let orthogonals =
+            self.pieces[self.next_move][Piece::Rook] | self.pieces[self.next_move][Piece::Queen];
+        let in_between = (orthogonals.sliding_attacks(self.occupied_squares(), Direction::East)
+            & self.pieces[self.next_move.enemy()][Piece::King]
+                .sliding_attacks(self.occupied_squares(), Direction::West))
+            | (orthogonals.sliding_attacks(self.occupied_squares(), Direction::West)
+                & self.pieces[self.next_move.enemy()][Piece::King]
+                    .sliding_attacks(self.occupied_squares(), Direction::East));
         if !(bit_move.source & self.pieces[self.next_move][Piece::Pawn] & double_push_source)
             .is_empty()
             && !(bit_move.target & double_push_target).is_empty()
+            && (en_passant_sources & in_between).is_empty()
         {
             self.en_passant = bit_move.source.shift_forward(self.next_move);
         } else {
