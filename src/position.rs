@@ -116,28 +116,24 @@ impl Position {
                 !(self.en_passant.shift_forward(self.next_move.enemy()));
         }
 
-        // TODO the en passant target must strictly be legal.
-        // examples where this is not the case:
-        // - en passant not available in discovered check
-        //      rnbqkbnr/ppp1pppp/8/3pPK2/8/8/PPPP1PPP/RNBQ1BNR w kq - 0 2
-        // - en passant pin
-        //      k7/8/8/3KPp1r/8/8/8/8 w - - 0 2
-        //
-        // potential workaround: allow illegal en passant square in internal state,
-        // explicitly check whether en passant is legal in `dir_golem` and FEN serializers.
         let double_push_source =
             Bitboard::rank(self.next_move.back_rank()).shift_forward(self.next_move);
         let double_push_target = Bitboard::rank(self.next_move.double_push_rank());
         let en_passant_sources =
             bit_move.target.shift(Direction::East) | bit_move.target.shift(Direction::West);
+
         let orthogonals =
             self.pieces[self.next_move][Piece::Rook] | self.pieces[self.next_move][Piece::Queen];
-        let in_between = (orthogonals.sliding_attacks(self.occupied_squares(), Direction::East)
+        let diagonals =
+            self.pieces[self.next_move][Piece::Bishop] | self.pieces[self.next_move][Piece::Queen];
+
+        let in_between = orthogonals.sliding_attacks(self.occupied_squares(), Direction::East)
             & self.pieces[self.next_move.enemy()][Piece::King]
-                .sliding_attacks(self.occupied_squares(), Direction::West))
-            | (orthogonals.sliding_attacks(self.occupied_squares(), Direction::West)
+                .sliding_attacks(self.occupied_squares(), Direction::West)
+            | orthogonals.sliding_attacks(self.occupied_squares(), Direction::West)
                 & self.pieces[self.next_move.enemy()][Piece::King]
-                    .sliding_attacks(self.occupied_squares(), Direction::East));
+                    .sliding_attacks(self.occupied_squares(), Direction::East);
+
         if !(bit_move.source & self.pieces[self.next_move][Piece::Pawn] & double_push_source)
             .is_empty()
             && !(bit_move.target & double_push_target).is_empty()
@@ -202,6 +198,32 @@ impl Position {
         }
         for enemy_pieces in self.pieces[self.next_move.enemy()].values_mut() {
             *enemy_pieces &= !bit_move.target;
+        }
+
+        let check_from = [Direction::East, Direction::West]
+            .iter()
+            .map(|&dir| {
+                self.pieces[self.next_move.enemy()][Piece::King]
+                    .sliding_attacks(self.occupied_squares(), dir)
+                    & orthogonals
+            })
+            .fold(Bitboard::empty(), |acc, x| acc | x)
+            | [
+                Direction::NorthEast,
+                Direction::NorthWest,
+                Direction::SouthEast,
+                Direction::SouthWest,
+            ]
+            .iter()
+            .map(|&dir| {
+                self.pieces[self.next_move.enemy()][Piece::King]
+                    .sliding_attacks(self.occupied_squares(), dir)
+                    & diagonals
+            })
+            .fold(Bitboard::empty(), |acc, x| acc | x);
+
+        if !check_from.is_empty() {
+            self.en_passant = Bitboard::empty();
         }
 
         self.next_move = self.next_move.enemy();
