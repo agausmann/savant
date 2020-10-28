@@ -1,3 +1,5 @@
+//! Bitboards, square-wise bitmasks.
+
 use crate::types::{Color, Direction, File, KnightDirection, Rank, RankFile};
 use std::ops;
 
@@ -82,6 +84,7 @@ const NOT_H: Bitboard = bitboard![
     1 1 1 1 1 1 1 .
 ];
 
+/// A bitboard, containing a single bit for each square on a chessboard.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Bitboard(u64);
 
@@ -96,6 +99,7 @@ impl Bitboard {
         Bitboard(x)
     }
 
+    /// Creates an "empty", zero-filled bitboard.
     pub const fn empty() -> Bitboard {
         bitboard![
             . . . . . . . .
@@ -109,6 +113,7 @@ impl Bitboard {
         ]
     }
 
+    /// Creates a "full", one-filled bitboard.
     pub const fn universe() -> Bitboard {
         bitboard![
             1 1 1 1 1 1 1 1
@@ -122,30 +127,41 @@ impl Bitboard {
         ]
     }
 
+    /// A bitboard with all squares on the given rank set to one and everything else set to zero.
     pub fn rank(rank: Rank) -> Bitboard {
         Bitboard(0x00000000000000ff << rank.bitboard_offset())
     }
 
+    /// A bitboard with all squares on the given file set to one and everything else set to zero.
     pub fn file(file: File) -> Bitboard {
         Bitboard(0x0101010101010101 << file.bitboard_offset())
     }
 
+    /// A bitboard with the given square set to one and everything else set to zero.
     pub fn square(rank_file: RankFile) -> Bitboard {
         Bitboard(0x0000000000000001 << rank_file.bitboard_offset())
     }
 
+    /// A bitboard with the back rank of the given color set to the given bitmask.
+    ///
+    /// The least-significant bit of the bitmask corresponds to the A-file, and the
+    /// most-significant bit corresponds to the H-file.
     pub fn back_rank(color: Color, rank: u8) -> Bitboard {
         Bitboard::new((rank as u64) << color.back_rank().bitboard_offset())
     }
 
+    /// `true` if the bitboard has no squares set.
     pub fn is_empty(self) -> bool {
         self == Bitboard::empty()
     }
 
+    /// The number of squares set.
     pub fn population_count(self) -> u32 {
         self.0.count_ones()
     }
 
+    /// Shifts the bitboard by one square in the given direction, discarding any squares on the
+    /// edges shifted out, and shifting in zeros.
     pub fn shift(self, direction: Direction) -> Bitboard {
         let (offset, mask) = match direction {
             Direction::North => (8, NOT_8),
@@ -160,6 +176,8 @@ impl Bitboard {
         Bitboard((self & mask).0.rotate_left(offset))
     }
 
+    /// Shifts the bitboard by the given knight-move, discarding any squares on the edges shifted
+    /// out, and shifting in zeros.
     pub fn knight_shift(self, direction: KnightDirection) -> Bitboard {
         let (offset, mask) = match direction {
             KnightDirection::NorthNorthEast => (17, NOT_8 & NOT_7 & NOT_H),
@@ -174,6 +192,7 @@ impl Bitboard {
         Bitboard((self & mask).0.rotate_left(offset))
     }
 
+    /// Shifts the bitboard "forward", the direction of the pawn's advance for the given player.
     pub fn shift_forward(self, color: Color) -> Bitboard {
         match color {
             Color::White => self.shift(Direction::North),
@@ -181,6 +200,8 @@ impl Bitboard {
         }
     }
 
+    /// Shifts the bitboard "forward" and east, the pawn's eastward capture moves for the given
+    /// player.
     pub fn shift_forward_east(self, color: Color) -> Bitboard {
         match color {
             Color::White => self.shift(Direction::NorthEast),
@@ -188,6 +209,8 @@ impl Bitboard {
         }
     }
 
+    /// Shifts the bitboard "forward" and west, the pawn's westward capture moves for the given
+    /// player.
     pub fn shift_forward_west(self, color: Color) -> Bitboard {
         match color {
             Color::White => self.shift(Direction::NorthWest),
@@ -195,6 +218,11 @@ impl Bitboard {
         }
     }
 
+    /// Performes an "occluded fill".
+    ///
+    /// Starting from every bit set in this bitboard, filling in the given direction as far as it
+    /// can go, but limited by the given `empty` bitboard. Bits can only be filled as long as they
+    /// are set in the `empty` bitboard; when a zero is reached, the fill for that bit stops.
     pub fn occluded_fill(self, empty: Bitboard, direction: Direction) -> Bitboard {
         let mut flood = self;
         let mut slide = self;
@@ -257,6 +285,8 @@ impl Bitboard {
             | (east_west | self).shift(Direction::South)
     }
 
+    /// Performs an unobstructed fill in the given direction, equivalent to `occluded_fill` with
+    /// the `empty` bitboard set to all ones.
     pub fn fill(self, direction: Direction) -> Bitboard {
         self.occluded_fill(Bitboard::universe(), direction)
     }
@@ -273,6 +303,11 @@ impl Bitboard {
         }
     }
 
+    /// Least-significant one-bit. The rank and file of the first set square found in this
+    /// bitboard, or `None` if empty.
+    ///
+    /// Scanning is done in row-major order, starting from `a1`, moving eastward, then shifting
+    /// north to the next rank.
     pub fn ls1b(self) -> Option<RankFile> {
         let offset = self.0.trailing_zeros();
         if offset < 64 {

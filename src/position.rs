@@ -5,6 +5,7 @@ use crate::types::{
 use enum_map::EnumMap;
 use std::str::FromStr;
 
+/// The game state of chess.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Position {
     pieces: EnumMap<Color, EnumMap<Piece, Bitboard>>,
@@ -108,6 +109,7 @@ impl Position {
         self.pieces[color][Piece::King].king_attacks()
     }
 
+    /// Updates the game state based on the given move, assuming it is a legal move.
     pub fn make_move(&mut self, bit_move: BitMove) {
         if !(self.pieces[self.next_move][Piece::Pawn] & bit_move.source).is_empty()
             && bit_move.target == self.en_passant
@@ -610,6 +612,7 @@ impl FromStr for Position {
     }
 }
 
+/// Direction-wise Generation of Legal Moves. Constructed by `Position::dir_golem`.
 #[derive(Debug, Clone)]
 pub struct DirGolem<'a> {
     position: &'a Position,
@@ -619,6 +622,10 @@ pub struct DirGolem<'a> {
 }
 
 impl<'a> DirGolem<'a> {
+    /// Orders moves for more optimal tree searching.
+    ///
+    /// - Capturing moves are visited before non-capturing moves.
+    /// - (maybe more heuristics in the future)
     pub fn move_ordered(self, color: Color) -> MoveOrderedDirGolem<'a> {
         let captures = DirGolem {
             position: self.position,
@@ -695,6 +702,7 @@ impl<'a> Iterator for DirGolem<'a> {
     }
 }
 
+/// Move-ordered DirGolem. Constructed by `DirGolem::move_ordered`.
 #[derive(Debug, Clone)]
 pub struct MoveOrderedDirGolem<'a> {
     captures: DirGolem<'a>,

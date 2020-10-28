@@ -1,19 +1,34 @@
+//! Types defining simple chess concepts.
+
 use crate::bitboard::Bitboard;
 use enum_map::Enum;
 use std::fmt::{self, Write};
 use std::str::FromStr;
 
+/// Piece types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Enum)]
 pub enum Piece {
+    /// Pawn `P`
     Pawn,
+
+    /// Knight `N`
     Knight,
+
+    /// Bishop `B`
     Bishop,
+
+    /// Rook `R`
     Rook,
+
+    /// Queen `Q`
     Queen,
+
+    /// King `K`
     King,
 }
 
 impl Piece {
+    /// Returns the character corresponding to the piece type.
     pub fn to_char(self) -> char {
         match self {
             Piece::Pawn => 'P',
@@ -25,6 +40,7 @@ impl Piece {
         }
     }
 
+    /// Parses a piece type from the given character, if it corresponds to a piece.
     pub fn from_char(c: char) -> Option<Piece> {
         match c.to_ascii_uppercase() {
             'P' => Some(Piece::Pawn),
@@ -54,13 +70,18 @@ impl FromStr for Piece {
     }
 }
 
+/// Colors / Players.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Enum)]
 pub enum Color {
+    /// "White" player `w`, first to move.
     White,
+
+    /// "Black" player `b`, second to move.
     Black,
 }
 
 impl Color {
+    /// Returns a character corresponding to the given color.
     pub fn to_char(self) -> char {
         match self {
             Color::White => 'w',
@@ -68,6 +89,7 @@ impl Color {
         }
     }
 
+    /// Parses a color from the given character, if it corresponds to a color.
     pub fn from_char(c: char) -> Option<Color> {
         match c.to_ascii_lowercase() {
             'w' => Some(Color::White),
@@ -76,6 +98,7 @@ impl Color {
         }
     }
 
+    /// The opposite of the given color.
     pub fn enemy(self) -> Color {
         match self {
             Color::White => Color::Black,
@@ -83,6 +106,7 @@ impl Color {
         }
     }
 
+    /// The rank on which the color's pieces (except for pawns) start.
     pub fn back_rank(self) -> Rank {
         match self {
             Color::White => Rank::R1,
@@ -90,6 +114,7 @@ impl Color {
         }
     }
 
+    /// The rank to which its pawns can be double-pushed.
     pub fn double_push_rank(self) -> Rank {
         match self {
             Color::White => Rank::R4,
@@ -114,18 +139,25 @@ impl FromStr for Color {
     }
 }
 
+/// Combination of `Piece` and `Color`, identifying a piece and the player who owns it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ColoredPiece(pub Piece, pub Color);
 
 impl ColoredPiece {
+    /// The piece type.
     pub fn piece(self) -> Piece {
         self.0
     }
 
+    /// The color of the player who owns the piece.
     pub fn color(self) -> Color {
         self.1
     }
 
+    /// Converts this colored piece into a single character.
+    ///
+    /// The character is similar to `Piece::to_char`, but with case set based on the player, with
+    /// white being uppercase and black being lowercase.
     pub fn to_char(self) -> char {
         match self.color() {
             Color::White => self.piece().to_char().to_ascii_uppercase(),
@@ -133,6 +165,10 @@ impl ColoredPiece {
         }
     }
 
+    /// Parses a colored piece from the given character.
+    ///
+    /// The piece is parsed directly from the character, and the color is determined based on the
+    /// case of the character, with white being uppercase and black being lowercase.
     pub fn from_char(c: char) -> Option<ColoredPiece> {
         let piece = Piece::from_char(c)?;
         let color = if c.is_ascii_uppercase() {
@@ -160,6 +196,7 @@ impl FromStr for ColoredPiece {
     }
 }
 
+/// Ranks (rows) of a chessboard.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Enum)]
 pub enum Rank {
     R1,
@@ -173,6 +210,7 @@ pub enum Rank {
 }
 
 impl Rank {
+    /// The offset at which this rank starts on a bitboard.
     pub(crate) fn bitboard_offset(self) -> u8 {
         match self {
             Rank::R1 => 0,
@@ -186,6 +224,7 @@ impl Rank {
         }
     }
 
+    /// Converts the rank to the numeric character that corresponds to it.
     pub fn to_char(self) -> char {
         match self {
             Rank::R1 => '1',
@@ -199,6 +238,7 @@ impl Rank {
         }
     }
 
+    /// Parses a rank from the numeric character that corresponds to it, if any.
     pub fn from_char(c: char) -> Option<Rank> {
         match c {
             '1' => Some(Rank::R1),
@@ -213,6 +253,7 @@ impl Rank {
         }
     }
 
+    /// The rank that is immediately "north" ("up" from White's perspective) of this one.
     pub fn north(self) -> Option<Rank> {
         match self {
             Rank::R1 => Some(Rank::R2),
@@ -226,6 +267,7 @@ impl Rank {
         }
     }
 
+    /// The rank that is immediately "south" ("down" from White's perspective) of this one.
     pub fn south(self) -> Option<Rank> {
         match self {
             Rank::R1 => None,
@@ -256,6 +298,7 @@ impl FromStr for Rank {
     }
 }
 
+/// Files (columns) of a chessboard.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Enum)]
 pub enum File {
     Fa,
@@ -269,6 +312,7 @@ pub enum File {
 }
 
 impl File {
+    /// The offset at which this file starts on a bitboard.
     pub(crate) fn bitboard_offset(self) -> u8 {
         match self {
             File::Fa => 0,
@@ -282,6 +326,7 @@ impl File {
         }
     }
 
+    /// Converts the file to the numeric character that corresponds to it.
     pub fn to_char(self) -> char {
         match self {
             File::Fa => 'a',
@@ -295,6 +340,7 @@ impl File {
         }
     }
 
+    /// Parses a file from the numeric character that corresponds to it, if any.
     pub fn from_char(c: char) -> Option<File> {
         match c.to_ascii_lowercase() {
             'a' => Some(File::Fa),
@@ -309,6 +355,7 @@ impl File {
         }
     }
 
+    /// The file that is immediately "east" ("right" from White's perspective) of this one.
     pub fn east(self) -> Option<File> {
         match self {
             File::Fa => Some(File::Fb),
@@ -322,6 +369,7 @@ impl File {
         }
     }
 
+    /// The file that is immediately "west" ("left" from White's perspective) of this one.
     pub fn west(self) -> Option<File> {
         match self {
             File::Fa => None,
@@ -352,18 +400,22 @@ impl FromStr for File {
     }
 }
 
+/// A combined rank and file, identifying a square on a chessboard.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RankFile(pub Rank, pub File);
 
 impl RankFile {
+    /// The rank of this square.
     pub fn rank(self) -> Rank {
         self.0
     }
 
+    /// The file of this square.
     pub fn file(self) -> File {
         self.1
     }
 
+    /// The index of this square on a bitboard.
     pub(crate) fn bitboard_offset(self) -> u8 {
         self.rank().bitboard_offset() + self.file().bitboard_offset()
     }
@@ -392,19 +444,36 @@ impl FromStr for RankFile {
     }
 }
 
+/// The orthogonal and diagonal directions on a chessboard.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Enum)]
 pub enum Direction {
+    /// North ("up" from White's perspective).
     North,
+
+    /// South ("down" from White's perspective).
     South,
+
+    /// East ("right" from White's perspective).
     East,
+
+    /// West ("left" from White's perspective).
     West,
+
+    /// North-east.
     NorthEast,
+
+    /// North-west.
     NorthWest,
+
+    /// South-east.
     SouthEast,
+
+    /// South-west.
     SouthWest,
 }
 
 impl Direction {
+    /// The direction that is directly opposite of this one.
     pub fn opposite(self) -> Direction {
         match self {
             Direction::North => Direction::South,
@@ -418,6 +487,7 @@ impl Direction {
         }
     }
 
+    /// The direction in which pawns can move for the given color.
     pub fn forward(color: Color) -> Direction {
         match color {
             Color::White => Direction::North,
@@ -425,6 +495,7 @@ impl Direction {
         }
     }
 
+    /// The direction in which pawns can capture eastward for the given color.
     pub fn forward_east(color: Color) -> Direction {
         match color {
             Color::White => Direction::NorthEast,
@@ -432,6 +503,7 @@ impl Direction {
         }
     }
 
+    /// The direction in which pawns can capture westward for the given color.
     pub fn forward_west(color: Color) -> Direction {
         match color {
             Color::White => Direction::NorthWest,
@@ -440,19 +512,36 @@ impl Direction {
     }
 }
 
+/// The 8 "directions" in which a knight can move.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Enum)]
 pub enum KnightDirection {
+    /// Two squares north, one square east.
     NorthNorthEast,
+
+    /// One square north, two squares east.
     NorthEastEast,
+
+    /// Two squares north, one square west.
     NorthNorthWest,
+
+    /// One square north, two squares west.
     NorthWestWest,
+
+    /// Two squares south, one square east.
     SouthSouthEast,
+
+    /// One square south, two squares east.
     SouthEastEast,
+
+    /// Two squares south, one square west.
     SouthSouthWest,
+
+    /// One square south, two squares west.
     SouthWestWest,
 }
 
 impl KnightDirection {
+    /// The direction that is directly opposite of this one.
     pub fn opposite(self) -> KnightDirection {
         match self {
             KnightDirection::NorthNorthEast => KnightDirection::SouthSouthWest,
@@ -467,10 +556,18 @@ impl KnightDirection {
     }
 }
 
+/// A move, identified by the source square, the target square, and the promotion piece (if any).
+/// Castling moves are encoded by the king moving two squares in the direction of the corresponding
+/// rook.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Move {
+    /// The location of the piece before the move.
     pub source: RankFile,
+
+    /// The location of the piece after the move.
     pub target: RankFile,
+
+    /// What piece this pawn promotes to, if applicable.
     pub promotion: Option<Piece>,
 }
 
@@ -509,10 +606,16 @@ impl FromStr for Move {
     }
 }
 
+/// A `Move` with source and target encoded as `Bitboard`s.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BitMove {
+    /// The location of the piece before the move.
     pub source: Bitboard,
+
+    /// The location of the piece after the move.
     pub target: Bitboard,
+
+    /// What piece this pawn promotes to, if applicable.
     pub promotion: Option<Piece>,
 }
 

@@ -1,3 +1,24 @@
+/// Constructs a bitboard from a given bit set, arranged to appear in text like a chessboard from
+/// White's position.
+///
+/// # Example
+///
+/// ```
+/// use savant::bitboard;
+/// use savant::bitboard::Bitboard;
+///
+/// let pawns = bitboard! [
+///     . . . . . . . .
+///     1 1 1 1 1 1 1 1
+///     . . . . . . . .
+///     . . . . . . . .
+///     . . . . . . . .
+///     . . . . . . . .
+///     1 1 1 1 1 1 1 1
+///     . . . . . . . .
+/// ];
+/// assert_eq!(pawns, Bitboard::new(0x00ff00000000ff00));
+/// ```
 #[macro_export]
 macro_rules! bitboard {
     (@parse $acc:tt 1 $($tail:tt)*) => {
@@ -7,7 +28,7 @@ macro_rules! bitboard {
         bitboard!(@parse ($acc << 1) $($tail)*);
     };
     (@parse $acc:tt) => {
-        crate::bitboard::Bitboard::new($acc.reverse_bits().swap_bytes())
+        $crate::bitboard::Bitboard::new($acc.reverse_bits().swap_bytes())
     };
     ($($tail:tt)*) => {
         bitboard!(@parse 0u64 $($tail)*);
