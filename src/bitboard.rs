@@ -1,6 +1,7 @@
 //! Bitboards, square-wise bitmasks.
 
 use crate::types::{Color, Direction, File, KnightDirection, Rank, RankFile};
+use std::iter::FromIterator;
 use std::ops;
 
 const NOT_1: Bitboard = bitboard![
@@ -445,3 +446,14 @@ impl DoubleEndedIterator for Bitboard {
 }
 
 impl ExactSizeIterator for Bitboard {}
+
+impl FromIterator<RankFile> for Bitboard {
+    fn from_iter<T>(iter: T) -> Self
+    where
+        T: IntoIterator<Item = RankFile>,
+    {
+        iter.into_iter().fold(Bitboard::empty(), |acc, square| {
+            acc | Bitboard::square(square)
+        })
+    }
+}
