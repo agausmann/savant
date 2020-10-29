@@ -626,7 +626,8 @@ impl<'a> DirGolem<'a> {
     ///
     /// - Capturing moves are visited before non-capturing moves.
     /// - (maybe more heuristics in the future)
-    pub fn move_ordered(self, color: Color) -> MoveOrderedDirGolem<'a> {
+    pub fn move_ordered(self) -> MoveOrderedDirGolem<'a> {
+        let color = self.position.next_move;
         let captures = DirGolem {
             position: self.position,
             cardinals: EnumMap::from(|dir| {
@@ -700,7 +701,52 @@ impl<'a> Iterator for DirGolem<'a> {
         }
         None
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        // Every square in the cardinal/knight sets counts as one move.
+        let cardinals: usize = self
+            .cardinals
+            .iter()
+            .map(|(_direction, targets)| targets.population_count() as usize)
+            .sum();
+        let knights: usize = self
+            .knights
+            .iter()
+            .map(|(_direction, targets)| targets.population_count() as usize)
+            .sum();
+
+        // Pawn promotions count for 4 moves (for each promoted piece type), so 3 extra for each
+        // promotion.
+        let promotions: usize = ((self.cardinals[Direction::forward(self.position.next_move)]
+            & Bitboard::rank(self.position.next_move.enemy().back_rank()))
+        .shift(Direction::forward(self.position.next_move).opposite())
+            & self.position.pieces[self.position.next_move][Piece::Pawn])
+            .population_count() as usize
+            + ((self.cardinals[Direction::forward_east(self.position.next_move)]
+                & Bitboard::rank(self.position.next_move.enemy().back_rank()))
+            .shift(Direction::forward_east(self.position.next_move).opposite())
+                & self.position.pieces[self.position.next_move][Piece::Pawn])
+                .population_count() as usize
+            + ((self.cardinals[Direction::forward_west(self.position.next_move)]
+                & Bitboard::rank(self.position.next_move.enemy().back_rank()))
+            .shift(Direction::forward_west(self.position.next_move).opposite())
+                & self.position.pieces[self.position.next_move][Piece::Pawn])
+                .population_count() as usize;
+        // Figure out how many promotions have already been returned, based on the state of
+        // pending_promotion.
+        let pending: usize = match self.pending_promotion {
+            None => 0,
+            Some((_, _, Piece::Rook)) => 1,
+            Some((_, _, Piece::Bishop)) => 2,
+            Some((_, _, Piece::Knight)) => 3,
+            _ => unreachable!(),
+        };
+        let len = cardinals + knights + 3 * promotions - pending;
+        (len, Some(len))
+    }
 }
+
+impl<'a> ExactSizeIterator for DirGolem<'a> {}
 
 /// Move-ordered DirGolem. Constructed by `DirGolem::move_ordered`.
 #[derive(Debug, Clone)]
@@ -715,7 +761,14 @@ impl<'a> Iterator for MoveOrderedDirGolem<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         self.captures.next().or_else(|| self.others.next())
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.captures.len() + self.others.len();
+        (len, Some(len))
+    }
 }
+
+impl<'a> ExactSizeIterator for MoveOrderedDirGolem<'a> {}
 
 #[cfg(test)]
 mod tests {
@@ -737,18 +790,24 @@ mod tests {
     const POSITION_PERFT_6: &str =
         "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10";
 
-    fn assert_position(position: &str) {
-        let _position: Position = position.parse().unwrap();
+    fn assert_position(position: &str) -> Position {
+        let position: Position = position.parse().unwrap();
+        assert_eq!(position.dir_golem().count(), position.dir_golem().len());
+        assert_eq!(
+            position.dir_golem().move_ordered().count(),
+            position.dir_golem().count()
+        );
+        position
     }
 
     fn assert_move(start: &str, move_: &str, end: &str) {
-        let mut position: Position = start.parse().unwrap();
+        let mut position = assert_position(start);
         position.make_move(move_.parse().unwrap());
-        assert_eq!(position, end.parse().unwrap());
+        assert_eq!(position, assert_position(end));
     }
 
     fn assert_perft(start: &str, depth: usize, count: usize) {
-        let position: Position = start.parse().unwrap();
+        let position = assert_position(start);
         assert_eq!(position.perft(depth), count);
     }
 
