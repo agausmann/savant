@@ -6,7 +6,7 @@ use enum_map::EnumMap;
 use std::str::FromStr;
 
 /// The game state of chess.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Position {
     pieces: EnumMap<Color, EnumMap<Piece, Bitboard>>,
     next_move: Color,
@@ -18,6 +18,11 @@ pub struct Position {
 }
 
 impl Position {
+    /// The player who is moving next.
+    pub fn next_move(&self) -> Color {
+        self.next_move
+    }
+
     /// The squares that are occupied by a piece.
     pub fn occupied_squares(&self) -> Bitboard {
         // I have to say, the vectorization and loop unrolling optimizations performed by the
@@ -41,6 +46,11 @@ impl Position {
             .values()
             .copied()
             .fold(Bitboard::empty(), |acc, item| acc | item)
+    }
+
+    /// The squares that are occupied by a piece of the given color and type.
+    pub fn pieces_separate(&self, color: Color) -> &EnumMap<Piece, Bitboard> {
+        &self.pieces[color]
     }
 
     pub fn en_passant_targets(&self) -> Bitboard {
