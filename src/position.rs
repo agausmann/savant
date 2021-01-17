@@ -258,10 +258,16 @@ impl Position {
     ///
     /// [DirGolem]: https://www.chessprogramming.org/DirGolem
     pub fn dir_golem(&self) -> DirGolem {
-        //TODO test
+        self.dir_golem_from(self.next_move)
+    }
 
-        let color = self.next_move;
-
+    /// Like `dir_golem`, but it can be evaluated from the perspective of either color.
+    ///
+    /// If `color` is not `self.next_move()`, then these moves are of course not legal, and king
+    /// captures may be considered to be legal moves if the other player is in check. However, it
+    /// is useful to enumerate the possible moves from this perspective for evaluating piece
+    /// mobility.
+    pub fn dir_golem_from(&self, color: Color) -> DirGolem {
         // In-between sets, calculated by the intersection of sliding attacks in one direction and
         // the king in the opposite direction, for each of the possible move directions.
         //
